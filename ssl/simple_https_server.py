@@ -4,9 +4,9 @@ import ssl
 import socket
 
 context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
-context.verify_mode = ssl.CERT_OPTIONAL
-context.load_verify_locations('/home/mquigley/.ros/keys/root.cer')
-context.load_cert_chain('/home/mquigley/.ros/keys/talker.server.cert', keyfile='/home/mquigley/.ros/keys/talker.server.key')
+context.verify_mode = ssl.CERT_REQUIRED
+context.load_verify_locations('root.cert')
+context.load_cert_chain('server.cert', keyfile='server.key')
 bindsocket = socket.socket()
 bindsocket.bind(('localhost',12345))
 bindsocket.listen(5)
