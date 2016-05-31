@@ -7,12 +7,11 @@ def check_path(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-
 def default_self_cert():
     cert = crypto.X509()
-    cert.get_subject().C  = "US"
+    cert.get_subject().C  = "ZZ"
     cert.get_subject().ST = "Sate"
-    cert.get_subject().L  = "Location"
+    cert.get_subject().L  = "Locality"
     cert.get_subject().O  = "Organization"
     cert.get_subject().OU = "Organizational Unit"
     cert.get_subject().CN = "Common Name"
@@ -87,7 +86,7 @@ def simple_key_generation(keys_dir):
     :return: none
     """
     check_path(keys_dir)
-    cipher = "blowfish"
+    cipher = "des"
 
     root_name = "root"
     root_passphrase = root_name
@@ -119,4 +118,4 @@ def simple_key_generation(keys_dir):
                                                   cipher=cipher,
                                                   passphrase=server_passphrase)
 
-simple_key_generation("./lol")
+simple_key_generation("./tmp")
