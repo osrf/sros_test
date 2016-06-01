@@ -5,6 +5,7 @@ from OpenSSL import crypto, SSL
 import os
 import yaml
 import getpass
+import datetime
 
 SROS_PASSPHRASE = 'SROS_PASSPHRASE'
 
@@ -19,8 +20,8 @@ def get_new_passphrase(key_name):
         return os.environ[SROS_PASSPHRASE]
     else:
         while(True):
-            passphrase = getpass.getpass(prompt='Enter pass phrase for %s: ' % key_name, stream=None)
-            passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for %s: ' % key_name, stream=None)
+            passphrase = getpass.getpass(prompt='Enter pass phrase for %s: '.format(key_name), stream=None)
+            passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for %s: '.format(key_name), stream=None)
             if (passphrase == passphrase_):
                 break
     return passphrase
@@ -46,8 +47,21 @@ def generate_cert(key_config, ca_config=None):
     cert.get_subject().OU = cert_config['subject']['organizational_unit']
     cert.get_subject().CN = cert_config['subject']['common_name']
     cert.set_serial_number(cert_config['serial_number'])
-    cert.gmtime_adj_notBefore(cert_config['notBefore'])
-    cert.gmtime_adj_notAfter(cert_config['notAfter'])
+
+    if isinstance(cert_config['notBefore'],int):
+        cert.gmtime_adj_notBefore(cert_config['notBefore'])
+    elif isinstance(cert_config['notBefore'],datetime.date):
+        cert.set_notBefore(cert_config['notBefore'].strftime('%Y%m%d%H%M%SZ'))
+    else:
+        cert.set_notBefore(cert_config['notBefore'])
+
+    if isinstance(cert_config['notAfter'], int):
+        cert.gmtime_adj_notAfter(cert_config['notAfter'])
+    elif isinstance(cert_config['notAfter'], datetime.date):
+        cert.set_notAfter(cert_config['notAfter'].strftime('%Y%m%d%H%M%SZ'))
+    else:
+        cert.set_notAfter(cert_config['notAfter'])
+
     return cert
 
 
@@ -138,7 +152,7 @@ def simple_key_generation(keys_dir, config_path):
         keys[master_name] = {'cert': master_cert, 'pkey': master_pkey, 'config': master_config}
 
     nodes = ['client', 'server']
-    node_config = config['keys']['node']
+    node_config = config['keys']['nodes']
 
     for node_name in nodes:
         node_dir = os.path.join(keys_dir, node_name)

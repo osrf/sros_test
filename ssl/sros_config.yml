@@ -6,7 +6,7 @@ keys:
     bits: 4096
     digest: sha256
     cipher: des
-    cert:
+    cert: &default_cert
       subject:
         country             : "ZZ"
         state               : "Sate"
@@ -15,13 +15,22 @@ keys:
         organizational_unit : "Organizational Unit"
         common_name         : "Common Name"
       serial_number: 0
-      notBefore : 0 # seconds into future (positive) or past (neative) wrt. now
+      notBefore : 0 # intager seconds into future (positive) or past (neative) wrt. now
       notAfter  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
   master: &master
     <<: *root
     issuer: root
     bits: 2048
-  node:
+    cert:
+      <<: *default_cert
+      serial_number: 1
+      notBefore : 0 # or iso8601 dates format
+      notAfter  : 2020-12-31 # or 2020-12-14t21:59:43.10-05:00 or 2020-12-14 21:59:43.10 -5
+  nodes:
     <<: *master
     issuer: master
     bits: 1024
+    cert:
+      <<: *default_cert
+      notBefore : 0 # or OpenSSL's crypto string format
+      notAfter  : "20201231215943Z" # YYYYMMDDhhmmssZ or YYYYMMDDhhmmss+hhmm or YYYYMMDDhhmmss-hhmm
