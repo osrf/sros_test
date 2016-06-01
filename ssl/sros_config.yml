@@ -32,5 +32,6 @@ keys:
     bits: 1024
     cert:
       <<: *default_cert
+      serial_number: 2
       notBefore : 0 # or OpenSSL's crypto string format
       notAfter  : "20201231215943Z" # YYYYMMDDhhmmssZ or YYYYMMDDhhmmss+hhmm or YYYYMMDDhhmmss-hhmm

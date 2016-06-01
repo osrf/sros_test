@@ -153,8 +153,10 @@ def simple_key_generation(keys_dir, config_path):
 
     nodes = ['client', 'server']
     node_config = config['keys']['nodes']
+    start = node_config['cert']['serial_number']
 
-    for node_name in nodes:
+    for serial_number, node_name in enumerate(nodes, start):
+        node_config['cert']['serial_number'] = serial_number;
         node_dir = os.path.join(keys_dir, node_name)
         node_cert, node_pkey = create_singed_keys(node_name, node_dir, node_config,
                                                       keys[master_name]['cert'],
