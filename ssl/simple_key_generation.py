@@ -13,6 +13,7 @@ class KeyBlob:
     def __init__(self, key_name, key_config):
         self.key_name = key_name
         self.key_config = key_config
+        self.passphrase = None
 
     def _generate_cert(self):
         cert = crypto.X509()
@@ -73,27 +74,29 @@ class KeyBlob:
         open(cert_path, "wt").write(
             crypto.dump_certificate(crypto.FILETYPE_PEM, self.cert))
 
-    def dump_key(self, key_dir, passphrase=None):
+    def dump_key(self, key_dir):
         key_path  = os.path.join(key_dir, self.key_name + '.pem')
         open(key_path, "wt").write(
-            crypto.dump_privatekey(crypto.FILETYPE_PEM, self.pkey, self.key_config['cipher'], passphrase))
+            crypto.dump_privatekey(crypto.FILETYPE_PEM, self.pkey, self.key_config['cipher'], self.passphrase))
+
+    def get_new_passphrase(self):
+        if 'cipher' not in self.key_config:
+            self.passphrase = None
+        elif (SROS_PASSPHRASE in os.environ):
+            self.passphrase = os.environ[SROS_PASSPHRASE]
+        else:
+            while (True):
+                passphrase = getpass.getpass(prompt='Enter pass phrase for %s: '.format(key_name), stream=None)
+                passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for %s: '.format(key_name),
+                                              stream=None)
+                if (passphrase == passphrase_):
+                    break
+            self.passphrase = passphrase
 
 
 def check_path(path):
     if not os.path.exists(path):
         os.makedirs(path)
-
-
-def get_new_passphrase(key_name):
-    if (SROS_PASSPHRASE in os.environ):
-        return os.environ[SROS_PASSPHRASE]
-    else:
-        while(True):
-            passphrase = getpass.getpass(prompt='Enter pass phrase for %s: '.format(key_name), stream=None)
-            passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for %s: '.format(key_name), stream=None)
-            if (passphrase == passphrase_):
-                break
-    return passphrase
 
 
 def load_config(path):
@@ -108,21 +111,17 @@ def load_config(path):
 def create_root_keys(key_dir, key_blob):
     check_path(key_dir)
     key_blob.create_root_cert()
-    passphrase = None
-    if 'cipher' in key_blob.key_config:
-        passphrase = get_new_passphrase(key_blob.key_name)
+    key_blob.get_new_passphrase()
     key_blob.dump_cert(key_dir)
-    key_blob.dump_key(key_dir, passphrase)
+    key_blob.dump_key(key_dir)
 
 
 def create_singed_keys(key_dir, key_blob, ca_blob):
     check_path(key_dir)
     key_blob.create_singed_cert(ca_blob)
-    passphrase = None
-    if 'cipher' in key_blob.key_config:
-        passphrase = get_new_passphrase(key_blob.key_name)
+    key_blob.get_new_passphrase()
     key_blob.dump_cert(key_dir)
-    key_blob.dump_key(key_dir, passphrase)
+    key_blob.dump_key(key_dir)
 
 
 def simple_key_generation(keys_dir, config_path):
@@ -161,4 +160,6 @@ def simple_key_generation(keys_dir, config_path):
         create_singed_keys(node_dir, node_blob, master_blob)
         keys[node_name] = node_blob
 
-simple_key_generation("./tmp", "sros_config.yml")
+
+if __name__ == "__main__":
+    simple_key_generation("./tmp", "sros_config.yml")
