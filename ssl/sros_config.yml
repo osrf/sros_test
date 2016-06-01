@@ -1,13 +1,13 @@
 # sros configuration file
 keys:
   root: &root
-    issuer:
-    type: rsa
-    bits: 4096
-    digest: sha256
-    cipher: des
+    issuer: # parent certificate authority; leave blank to specify as self singed
+    type: rsa # key type: rsa or dsa
+    bits: 4096 # key length
+    digest: sha256 # fingerprint method used for singing certificate requests
+    cipher: des # private key cipher; leave blank to save keyfile unencrypted
     cert: &default_cert
-      subject:
+      subject: # change subject content accordingly for your use
         country             : "ZZ"
         state               : "Sate"
         locality            : "Locality"
@@ -18,20 +18,20 @@ keys:
       notBefore : 0 # intager seconds into future (positive) or past (neative) wrt. now
       notAfter  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
   master: &master
-    <<: *root
-    issuer: root
-    bits: 2048
+    <<: *root # inherit key config defaults from root lable
+    issuer: root # use root as
+    bits: 2048 # overide key length inherited from root
     cert:
-      <<: *default_cert
+      <<: *default_cert # forking from root cert, so include cert defaults
       serial_number: 1
       notBefore : 0 # or iso8601 dates format
       notAfter  : 2020-12-31 # or 2020-12-14t21:59:43.10-05:00 or 2020-12-14 21:59:43.10 -5
   nodes:
     <<: *master
-    issuer: master
-    bits: 1024
+    issuer: master # inherit key config defaults from master lable
+    bits: 1024 # overide key length inherited from master
     cert:
-      <<: *default_cert
-      serial_number: 2
+      <<: *default_cert # forking from master cert, so include cert defaults
+      serial_number: 2 # starting serial_number index for incrementing count
       notBefore : 0 # or OpenSSL's crypto string format
       notAfter  : "20201231215943Z" # YYYYMMDDhhmmssZ or YYYYMMDDhhmmss+hhmm or YYYYMMDDhhmmss-hhmm
