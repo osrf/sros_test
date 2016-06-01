@@ -9,6 +9,75 @@ import datetime
 
 SROS_PASSPHRASE = 'SROS_PASSPHRASE'
 
+class KeyBlob:
+    def __init__(self, key_name, key_config):
+        self.key_name = key_name
+        self.key_config = key_config
+
+    def _generate_cert(self):
+        cert = crypto.X509()
+        cert_config = self.key_config['cert']
+
+        cert.get_subject().C = cert_config['subject']['country']
+        cert.get_subject().ST = cert_config['subject']['state']
+        cert.get_subject().L = cert_config['subject']['locality']
+        cert.get_subject().O = cert_config['subject']['organization']
+        cert.get_subject().OU = cert_config['subject']['organizational_unit']
+        cert.get_subject().CN = cert_config['subject']['common_name']
+        cert.set_serial_number(cert_config['serial_number'])
+
+        if isinstance(cert_config['notBefore'], int):
+            cert.gmtime_adj_notBefore(cert_config['notBefore'])
+        elif isinstance(cert_config['notBefore'], datetime.date):
+            cert.set_notBefore(cert_config['notBefore'].strftime('%Y%m%d%H%M%SZ'))
+        else:
+            cert.set_notBefore(cert_config['notBefore'])
+
+        if isinstance(cert_config['notAfter'], int):
+            cert.gmtime_adj_notAfter(cert_config['notAfter'])
+        elif isinstance(cert_config['notAfter'], datetime.date):
+            cert.set_notAfter(cert_config['notAfter'].strftime('%Y%m%d%H%M%SZ'))
+        else:
+            cert.set_notAfter(cert_config['notAfter'])
+
+        self.cert = cert
+
+    def _generate_key(self):
+        self.pkey = crypto.PKey()
+        type = {
+            'rsa': crypto.TYPE_RSA,
+            'dsa': crypto.TYPE_DSA,}[self.key_config['type']]
+        bits = self.key_config['bits']
+        self.pkey.generate_key(type, bits)
+
+    def create_root_cert(self):
+
+        self._generate_key()
+        self._generate_cert()
+
+        self.cert.set_issuer(self.cert.get_subject())
+        self.cert.set_pubkey(self.pkey)
+        self.cert.sign(self.pkey, self.key_config['digest'])
+
+    def create_singed_cert(self, ca_blob):
+
+        self._generate_key()
+        self._generate_cert()
+
+        self.cert.set_issuer(ca_blob.cert.get_subject())
+        self.cert.set_pubkey(self.pkey)
+        self.cert.sign(ca_blob.pkey, ca_blob.key_config['digest'])
+
+    def dump_cert(self, cert_dir):
+        cert_path = os.path.join(cert_dir, self.key_name + '.cert')
+        open(cert_path, "wt").write(
+            crypto.dump_certificate(crypto.FILETYPE_PEM, self.cert))
+
+    def dump_key(self, key_dir, passphrase=None):
+        key_path  = os.path.join(key_dir, self.key_name + '.pem')
+        open(key_path, "wt").write(
+            crypto.dump_privatekey(crypto.FILETYPE_PEM, self.pkey, self.key_config['cipher'], passphrase))
+
 
 def check_path(path):
     if not os.path.exists(path):
@@ -36,91 +105,24 @@ def load_config(path):
     return config
 
 
-def generate_cert(key_config, ca_config=None):
-    cert = crypto.X509()
-    cert_config = key_config['cert']
-
-    cert.get_subject().C  = cert_config['subject']['country']
-    cert.get_subject().ST = cert_config['subject']['state']
-    cert.get_subject().L  = cert_config['subject']['locality']
-    cert.get_subject().O  = cert_config['subject']['organization']
-    cert.get_subject().OU = cert_config['subject']['organizational_unit']
-    cert.get_subject().CN = cert_config['subject']['common_name']
-    cert.set_serial_number(cert_config['serial_number'])
-
-    if isinstance(cert_config['notBefore'],int):
-        cert.gmtime_adj_notBefore(cert_config['notBefore'])
-    elif isinstance(cert_config['notBefore'],datetime.date):
-        cert.set_notBefore(cert_config['notBefore'].strftime('%Y%m%d%H%M%SZ'))
-    else:
-        cert.set_notBefore(cert_config['notBefore'])
-
-    if isinstance(cert_config['notAfter'], int):
-        cert.gmtime_adj_notAfter(cert_config['notAfter'])
-    elif isinstance(cert_config['notAfter'], datetime.date):
-        cert.set_notAfter(cert_config['notAfter'].strftime('%Y%m%d%H%M%SZ'))
-    else:
-        cert.set_notAfter(cert_config['notAfter'])
-
-    return cert
-
-
-def generate_key(key_config):
-    pkey = crypto.PKey()
-    type = {
-        'rsa': crypto.TYPE_RSA,
-        'dsa': crypto.TYPE_DSA,}[key_config['type']]
-    bits = key_config['bits']
-    pkey.generate_key(type, bits)
-    return pkey
-
-
-def save_keys(cert, pkey, key_dir, key_name, cipher=None, passphrase=None):
-    cert_path = os.path.join(key_dir, key_name + '.cert')
-    key_path  = os.path.join(key_dir, key_name + '.pem')
-
-    open(cert_path, "wt").write(
-        crypto.dump_certificate(crypto.FILETYPE_PEM, cert))
-    open(key_path, "wt").write(
-        crypto.dump_privatekey(crypto.FILETYPE_PEM, pkey, cipher, passphrase))
-
-
-def create_root_keys(key_name, key_dir, key_config):
+def create_root_keys(key_dir, key_blob):
     check_path(key_dir)
-
-    # create a key pair
-    pkey = generate_key(key_config)
-
-    # create a cert
-    cert = generate_cert(key_config)
-    cert.set_issuer(cert.get_subject())
-    cert.set_pubkey(pkey)
-    cert.sign(pkey, key_config['digest'])
-    if 'cipher' in key_config:
-        passphrase = get_new_passphrase(key_name)
-        save_keys(cert, pkey, key_dir, key_name, key_config['cipher'], passphrase)
-    else:
-        save_keys(cert, pkey, key_dir, key_name)
-    return cert, pkey
+    key_blob.create_root_cert()
+    passphrase = None
+    if 'cipher' in key_blob.key_config:
+        passphrase = get_new_passphrase(key_blob.key_name)
+    key_blob.dump_cert(key_dir)
+    key_blob.dump_key(key_dir, passphrase)
 
 
-def create_singed_keys(key_name, key_dir, key_config, ca_cert, ca_pkey, ca_config):
+def create_singed_keys(key_dir, key_blob, ca_blob):
     check_path(key_dir)
-
-    # create a key pair
-    pkey = generate_key(key_config)
-
-    # create a cert
-    cert = generate_cert(key_config, ca_config)
-    cert.set_issuer(ca_cert.get_subject())
-    cert.set_pubkey(pkey)
-    cert.sign(ca_pkey, key_config['digest'])
-    if 'cipher' in key_config:
-        passphrase = get_new_passphrase(key_name)
-        save_keys(cert, pkey, key_dir, key_name, key_config['cipher'], passphrase)
-    else:
-        save_keys(cert, pkey, key_dir, key_name)
-    return cert, pkey
+    key_blob.create_singed_cert(ca_blob)
+    passphrase = None
+    if 'cipher' in key_blob.key_config:
+        passphrase = get_new_passphrase(key_blob.key_name)
+    key_blob.dump_cert(key_dir)
+    key_blob.dump_key(key_dir, passphrase)
 
 
 def simple_key_generation(keys_dir, config_path):
@@ -128,41 +130,35 @@ def simple_key_generation(keys_dir, config_path):
 
     config = load_config(config_path)
     master_name = "master"
+    master_config = config['keys'][master_name]
+    master_dir = os.path.join(keys_dir, master_name)
+    master_blob = KeyBlob(master_name, master_config)
     keys = dict()
 
     if (config['keys'][master_name]['issuer'] is None):
-        master_config = config['keys'][master_name]
-        master_dir = os.path.join(keys_dir, master_name)
-        master_cert, master_pkey = create_root_keys(master_name, master_dir, master_config)
-        keys[master_name] = {'cert': master_cert, 'pkey': master_pkey}
+        create_root_keys(master_dir, master_blob)
+        keys[master_name] = master_blob
 
     elif (config['keys'][master_name]['issuer'] in config['keys']):
         root_name = config['keys']['master']['issuer']
-        root_dir = os.path.join(keys_dir, root_name)
         root_config = config['keys'][root_name]
-        root_cert, root_pkey = create_root_keys(root_name, root_dir, root_config)
-        keys[root_name] = {'cert': root_cert, 'pkey': root_pkey, 'config': root_config}
+        root_blob = KeyBlob(root_name, root_config)
+        root_dir = os.path.join(keys_dir, root_name)
+        create_root_keys(root_dir, root_blob)
+        keys[root_name] = root_blob
 
-        master_config = config['keys'][master_name]
-        master_dir = os.path.join(keys_dir, master_name)
-        master_cert, master_pkey = create_singed_keys(master_name, master_dir, master_config,
-                                                      keys[root_name]['cert'],
-                                                      keys[root_name]['pkey'],
-                                                      keys[root_name]['config'])
-        keys[master_name] = {'cert': master_cert, 'pkey': master_pkey, 'config': master_config}
+        create_singed_keys(master_dir, master_blob, root_blob)
+        keys[master_name] = master_blob
 
     nodes = ['client', 'server']
     node_config = config['keys']['nodes']
     start = node_config['cert']['serial_number']
 
     for serial_number, node_name in enumerate(nodes, start):
-        node_config['cert']['serial_number'] = serial_number;
+        node_config['cert']['serial_number'] = serial_number
+        node_blob = KeyBlob(node_name, node_config)
         node_dir = os.path.join(keys_dir, node_name)
-        node_cert, node_pkey = create_singed_keys(node_name, node_dir, node_config,
-                                                      keys[master_name]['cert'],
-                                                      keys[master_name]['pkey'],
-                                                      keys[master_name]['config'])
-        keys[node_name] = {'cert': node_cert, 'pkey': node_pkey, 'config': node_config}
-
+        create_singed_keys(node_dir, node_blob, master_blob)
+        keys[node_name] = node_blob
 
 simple_key_generation("./tmp", "sros_config.yml")
