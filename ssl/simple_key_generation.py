@@ -1,30 +1,65 @@
 #!/usr/bin/python
 
+from __future__ import print_function
 from OpenSSL import crypto, SSL
 import os
+import yaml
+import getpass
+
+SROS_PASSPHRASE = 'SROS_PASSPHRASE'
+
 
 def check_path(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def default_self_cert():
+
+def get_new_passphrase(key_name):
+    if (SROS_PASSPHRASE in os.environ):
+        return os.environ[SROS_PASSPHRASE]
+    else:
+        while(True):
+            passphrase = getpass.getpass(prompt='Enter pass phrase for %s: ' % key_name, stream=None)
+            passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for %s: ' % key_name, stream=None)
+            if (passphrase == passphrase_):
+                break
+    return passphrase
+
+
+def load_config(path):
+    with open(path, 'r') as stream:
+        try:
+            config = yaml.load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+    return config
+
+
+def generate_cert(key_config, ca_config=None):
     cert = crypto.X509()
-    cert.get_subject().C  = "ZZ"
-    cert.get_subject().ST = "Sate"
-    cert.get_subject().L  = "Locality"
-    cert.get_subject().O  = "Organization"
-    cert.get_subject().OU = "Organizational Unit"
-    cert.get_subject().CN = "Common Name"
-    cert.set_serial_number(0)
-    cert.gmtime_adj_notBefore(0)
-    cert.gmtime_adj_notAfter(10 * 365 * 24 * 60 * 60)
-    cert.set_issuer(cert.get_subject())
+    cert_config = key_config['cert']
+
+    cert.get_subject().C  = cert_config['subject']['country']
+    cert.get_subject().ST = cert_config['subject']['state']
+    cert.get_subject().L  = cert_config['subject']['locality']
+    cert.get_subject().O  = cert_config['subject']['organization']
+    cert.get_subject().OU = cert_config['subject']['organizational_unit']
+    cert.get_subject().CN = cert_config['subject']['common_name']
+    cert.set_serial_number(cert_config['serial_number'])
+    cert.gmtime_adj_notBefore(cert_config['notBefore'])
+    cert.gmtime_adj_notAfter(cert_config['notAfter'])
     return cert
 
-def default_keys():
+
+def generate_key(key_config):
     pkey = crypto.PKey()
-    pkey.generate_key(crypto.TYPE_RSA, 2048)
+    type = {
+        'rsa': crypto.TYPE_RSA,
+        'dsa': crypto.TYPE_DSA,}[key_config['type']]
+    bits = key_config['bits']
+    pkey.generate_key(type, bits)
     return pkey
+
 
 def save_keys(cert, pkey, key_dir, key_name, cipher=None, passphrase=None):
     cert_path = os.path.join(key_dir, key_name + '.cert')
@@ -36,86 +71,82 @@ def save_keys(cert, pkey, key_dir, key_name, cipher=None, passphrase=None):
         crypto.dump_privatekey(crypto.FILETYPE_PEM, pkey, cipher, passphrase))
 
 
-def create_root_keys(key_dir, key_name, cipher=None, passphrase=None):
-    """
-    Generate a self singed certificate authority
-    :param root_dir:
-    :param cipher:
-    :param passphrase:
-    :return:
-    """
+def create_root_keys(key_name, key_dir, key_config):
     check_path(key_dir)
 
     # create a key pair
-    pkey = default_keys()
+    pkey = generate_key(key_config)
 
     # create a cert
-    cert = default_self_cert()
+    cert = generate_cert(key_config)
+    cert.set_issuer(cert.get_subject())
     cert.set_pubkey(pkey)
-    cert.sign(pkey, 'sha256')
-
-    save_keys(cert, pkey, key_dir, key_name, cipher, passphrase)
+    cert.sign(pkey, key_config['digest'])
+    if 'cipher' in key_config:
+        passphrase = get_new_passphrase(key_name)
+        save_keys(cert, pkey, key_dir, key_name, key_config['cipher'], passphrase)
+    else:
+        save_keys(cert, pkey, key_dir, key_name)
     return cert, pkey
 
-def create_singed_keys(key_dir, key_name, ca_cert, ca_pkey, cipher=None, passphrase=None):
-    """
-    Generate singed keys from certificate authority
-    :param root_dir:
-    :param cipher:
-    :param passphrase:
-    :return:
-    """
+
+def create_singed_keys(key_name, key_dir, key_config, ca_cert, ca_pkey, ca_config):
     check_path(key_dir)
 
     # create a key pair
-    pkey = default_keys()
+    pkey = generate_key(key_config)
 
     # create a cert
-    cert = default_self_cert()
+    cert = generate_cert(key_config, ca_config)
     cert.set_issuer(ca_cert.get_subject())
     cert.set_pubkey(pkey)
-    cert.sign(ca_pkey, 'sha256')
-
-    save_keys(cert, pkey, key_dir, key_name, cipher, passphrase)
+    cert.sign(ca_pkey, key_config['digest'])
+    if 'cipher' in key_config:
+        passphrase = get_new_passphrase(key_name)
+        save_keys(cert, pkey, key_dir, key_name, key_config['cipher'], passphrase)
+    else:
+        save_keys(cert, pkey, key_dir, key_name)
     return cert, pkey
 
-def simple_key_generation(keys_dir):
-    """
-    Generate key structure
-    :param keys_dir: destination path for key structure
-    :return: none
-    """
+
+def simple_key_generation(keys_dir, config_path):
     check_path(keys_dir)
-    cipher = "des"
 
-    root_name = "root"
-    root_passphrase = root_name
-    root_dir = os.path.join(keys_dir, root_name)
-    root_cert, root_pkey = create_root_keys(root_dir, root_name,
-                                            cipher=cipher,
-                                            passphrase=root_passphrase)
-
+    config = load_config(config_path)
     master_name = "master"
-    master_passphrase = master_name
-    master_dir = os.path.join(keys_dir, master_name)
-    master_cert, master_pkey = create_singed_keys(master_dir, master_name,
-                                                  root_cert, root_pkey,
-                                                  cipher=cipher,
-                                                  passphrase=master_passphrase)
+    keys = dict()
 
-    client_name = "client"
-    client_passphrase = client_name
-    client_dir = os.path.join(keys_dir, client_name)
-    client_cert, client_pkey = create_singed_keys(client_dir, client_name,
-                                                  master_cert, master_pkey,
-                                                  cipher=cipher,
-                                                  passphrase=client_passphrase)
-    server_name = "server"
-    server_passphrase = server_name
-    server_dir = os.path.join(keys_dir, server_name)
-    server_cert, server_pkey = create_singed_keys(server_dir, server_name,
-                                                  master_cert, master_pkey,
-                                                  cipher=cipher,
-                                                  passphrase=server_passphrase)
+    if (config['keys'][master_name]['issuer'] is None):
+        master_config = config['keys'][master_name]
+        master_dir = os.path.join(keys_dir, master_name)
+        master_cert, master_pkey = create_root_keys(master_name, master_dir, master_config)
+        keys[master_name] = {'cert': master_cert, 'pkey': master_pkey}
 
-simple_key_generation("./tmp")
+    elif (config['keys'][master_name]['issuer'] in config['keys']):
+        root_name = config['keys']['master']['issuer']
+        root_dir = os.path.join(keys_dir, root_name)
+        root_config = config['keys'][root_name]
+        root_cert, root_pkey = create_root_keys(root_name, root_dir, root_config)
+        keys[root_name] = {'cert': root_cert, 'pkey': root_pkey, 'config': root_config}
+
+        master_config = config['keys'][master_name]
+        master_dir = os.path.join(keys_dir, master_name)
+        master_cert, master_pkey = create_singed_keys(master_name, master_dir, master_config,
+                                                      keys[root_name]['cert'],
+                                                      keys[root_name]['pkey'],
+                                                      keys[root_name]['config'])
+        keys[master_name] = {'cert': master_cert, 'pkey': master_pkey, 'config': master_config}
+
+    nodes = ['client', 'server']
+    node_config = config['keys']['node']
+
+    for node_name in nodes:
+        node_dir = os.path.join(keys_dir, node_name)
+        node_cert, node_pkey = create_singed_keys(node_name, node_dir, node_config,
+                                                      keys[master_name]['cert'],
+                                                      keys[master_name]['pkey'],
+                                                      keys[master_name]['config'])
+        keys[node_name] = {'cert': node_cert, 'pkey': node_pkey, 'config': node_config}
+
+
+simple_key_generation("./tmp", "sros_config.yml")

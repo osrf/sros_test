@@ -1,0 +1,27 @@
+# sros configuration file
+keys:
+  root: &root
+    issuer:
+    type: rsa
+    bits: 4096
+    digest: sha256
+    cipher: des
+    cert:
+      subject:
+        country             : "ZZ"
+        state               : "Sate"
+        locality            : "Locality"
+        organization        : "Organization"
+        organizational_unit : "Organizational Unit"
+        common_name         : "Common Name"
+      serial_number: 0
+      notBefore : 0 # seconds into future (positive) or past (neative) wrt. now
+      notAfter  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
+  master: &master
+    <<: *root
+    issuer: root
+    bits: 2048
+  node:
+    <<: *master
+    issuer: master
+    bits: 1024
