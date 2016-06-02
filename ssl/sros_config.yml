@@ -39,7 +39,7 @@ keys:
   root: &root
     issuer: # parent certificate authority; leave blank to specify as self singed
     type: rsa # key type: rsa or dsa
-    bits: 4096 # key length
+    bits: 8192 # key length
     digest: sha256 # fingerprint method used for singing certificate requests
     cipher: des # private key cipher; leave blank to save keyfile unencrypted
     cert: &default_cert
@@ -59,7 +59,7 @@ keys:
   master: &master
     <<: *root # inherit key config defaults from root lable
     issuer: root # use root as
-    bits: 2048 # overide key length inherited from root
+    bits: 4096 # overide key length inherited from root
     cert:
       <<: *default_cert # forking from root cert, so include cert defaults
       subject: # change subject content accordingly for your use
@@ -73,7 +73,7 @@ keys:
   nodes:
     <<: *master
     issuer: master # inherit key config defaults from master lable
-    bits: 1024 # overide key length inherited from master
+    bits: 2048 # overide key length inherited from master
     cert:
       <<: *default_cert # forking from master cert, so include cert defaults
       serial_number: 2 # starting serial_number index for incrementing count
