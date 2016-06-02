@@ -34,12 +34,8 @@ class KeyBlob:
             for type_name in x509_extensions:
                 critical = x509_extensions[type_name]['critical']
                 value = ", ".join(x509_extensions[type_name]['value'])
-                subject = x509_extensions[type_name]['subject']
-                if subject is not None:
-                    subject = self.cert
-                issuer = x509_extensions[type_name]['issuer']
-                if issuer is not None:
-                    issuer = ca_blob.cert
+                subject = self.cert
+                issuer = ca_blob.cert
                 extension = crypto.X509Extension(type_name, critical, value, subject, issuer)
                 self.cert.add_extensions([extension])
 

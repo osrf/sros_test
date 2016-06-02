@@ -4,44 +4,32 @@ x509_extensions:
     basicConstraints:
       critical: True
       value:
-      - CA:TRUE
-      subject:
-      issuer:
+        - CA:TRUE
     subjectKeyIdentifier:
       critical: True
       value:
-      - hash
-      subject: subject
-      issuer:
+        - hash
     authorityKeyIdentifier:
       critical: True
       value:
-      - keyid:always
-      subject:
-      issuer: issuer
+        - keyid:always
     keyUsage:
       critical: True
       value:
-      - digitalSignature
-      - keyEncipherment
-      - keyAgreement
-      subject:
-      issuer:
+        - digitalSignature
+        - keyEncipherment
+        - keyAgreement
     extendedKeyUsage:
       critical: True
       value:
-      - serverAuth
-      - clientAuth
-      subject:
-      issuer:
+        - serverAuth
+        - clientAuth
   node_extensions: &node_extensions
     <<: *root_extensions
     basicConstraints:
       critical: True
       value:
-      - CA:FALSE
-      subject:
-      issuer:
+        - CA:FALSE
 
 keys:
   root: &root
