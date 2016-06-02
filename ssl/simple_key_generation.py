@@ -15,6 +15,8 @@ class KeyBlob:
         self.key_name = key_name
         self.key_config = key_config
         self.passphrase = None
+        self.cert_path = None
+        self.key_path = None
 
 
     def _sort_extension_logic(self):
@@ -80,36 +82,33 @@ class KeyBlob:
         self.pkey.generate_key(type, bits)
 
 
-    def create_root_cert(self):
+    def create_cert(self, ca_blob=None):
 
         self._generate_key()
         self._generate_cert()
 
-        self.cert.set_issuer(self.cert.get_subject())
-        self.cert.set_pubkey(self.pkey)
-        self._add_extensions(self)
-        self.cert.sign(self.pkey, self.key_config['digest'])
+        if ca_blob is None:
+            self.cert.set_issuer(self.cert.get_subject())
+            self.cert.set_pubkey(self.pkey)
+            self._add_extensions(self)
+            self.cert.sign(self.pkey, self.key_config['digest'])
+        else:
+            self.cert.set_issuer(ca_blob.cert.get_subject())
+            self.cert.set_pubkey(self.pkey)
+            self._add_extensions(ca_blob)
+            self.cert.sign(ca_blob.pkey, ca_blob.key_config['digest'])
 
 
-    def create_singed_cert(self, ca_blob):
-
-        self._generate_key()
-        self._generate_cert()
-
-        self.cert.set_issuer(ca_blob.cert.get_subject())
-        self.cert.set_pubkey(self.pkey)
-        self._add_extensions(ca_blob)
-        self.cert.sign(ca_blob.pkey, ca_blob.key_config['digest'])
-
-
-    def dump_cert(self, cert_dir):
-        cert_path = os.path.join(cert_dir, self.key_name + '.cert')
+    def dump_cert(self, cert_path=None):
+        if cert_path is None:
+            cert_path = self.cert_path
         open(cert_path, "wt").write(
             crypto.dump_certificate(crypto.FILETYPE_PEM, self.cert))
 
 
-    def dump_key(self, key_dir):
-        key_path  = os.path.join(key_dir, self.key_name + '.pem')
+    def dump_key(self, key_path=None):
+        if key_path is None:
+            key_path = self.key_path
         open(key_path, "wt").write(
             crypto.dump_privatekey(crypto.FILETYPE_PEM, self.pkey, self.key_config['cipher'], self.passphrase))
 
@@ -121,8 +120,8 @@ class KeyBlob:
             self.passphrase = os.environ[SROS_PASSPHRASE]
         else:
             while (True):
-                passphrase = getpass.getpass(prompt='Enter pass phrase for %s: '.format(key_name), stream=None)
-                passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for %s: '.format(key_name),
+                passphrase = getpass.getpass(prompt='Enter pass phrase for %s: '.format(self.key_name), stream=None)
+                passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for %s: '.format(self.key_name),
                                               stream=None)
                 if (passphrase == passphrase_):
                     break
@@ -143,20 +142,14 @@ def load_config(path):
     return config
 
 
-def create_root_keys(key_dir, key_blob):
+def create_keys(key_dir, key_blob, ca_blob=None):
     check_path(key_dir)
-    key_blob.create_root_cert()
+    key_blob.create_cert(ca_blob)
     key_blob.get_new_passphrase()
-    key_blob.dump_cert(key_dir)
-    key_blob.dump_key(key_dir)
-
-
-def create_singed_keys(key_dir, key_blob, ca_blob):
-    check_path(key_dir)
-    key_blob.create_singed_cert(ca_blob)
-    key_blob.get_new_passphrase()
-    key_blob.dump_cert(key_dir)
-    key_blob.dump_key(key_dir)
+    key_blob.cert_path = os.path.join(key_dir, key_blob.key_name + '.cert')
+    key_blob.key_path  = os.path.join(key_dir, key_blob.key_name + '.pem')
+    key_blob.dump_cert()
+    key_blob.dump_key()
 
 
 def simple_key_generation(keys_dir, config_path):
@@ -170,7 +163,7 @@ def simple_key_generation(keys_dir, config_path):
     keys = dict()
 
     if (config['keys'][master_name]['issuer'] is None):
-        create_root_keys(master_dir, master_blob)
+        create_keys(master_dir, master_blob)
         keys[master_name] = master_blob
 
     elif (config['keys'][master_name]['issuer'] in config['keys']):
@@ -178,10 +171,10 @@ def simple_key_generation(keys_dir, config_path):
         root_config = config['keys'][root_name]
         root_blob = KeyBlob(root_name, root_config)
         root_dir = os.path.join(keys_dir, root_name)
-        create_root_keys(root_dir, root_blob)
+        create_keys(root_dir, root_blob)
         keys[root_name] = root_blob
 
-        create_singed_keys(master_dir, master_blob, root_blob)
+        create_keys(master_dir, master_blob, root_blob)
         keys[master_name] = master_blob
 
     node_names = ['master','talker', 'listener']
@@ -195,7 +188,7 @@ def simple_key_generation(keys_dir, config_path):
             node_name = node + '.' + mode
             node_config['cert']['serial_number'] = serial_number
             node_blob = KeyBlob(node_name, node_config)
-            create_singed_keys(node_dir, node_blob, master_blob)
+            create_keys(node_dir, node_blob, master_blob)
             keys[node_name] = node_blob
             serial_number += 1
 
