@@ -1,35 +1,39 @@
 # sros configuration file
-x509_extensions:
+x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certificate_System/8.0/html/Admin_Guide/Standard_X.509_v3_Certificate_Extensions.html
   root_extensions: &root_extensions
-    basicConstraints:
-      critical: True
+    basicConstraints: # This extension is used during the certificate chain verification process to identify CA certificates and to apply certificate chain path length constraints
+      critical: True # PKIX Part 1 requires that this extension be marked critical. This extension is evaluated regardless of its criticality
       value:
         - CA:TRUE
-    subjectKeyIdentifier:
-      critical: True
+    subjectKeyIdentifier: # Subject Key Identifier extension identifies the public key certified by this certificate
+      critical: False # This extension is always noncritical
       value:
         - hash
-    authorityKeyIdentifier:
-      critical: True
+    authorityKeyIdentifier: # Authority Key Identifier extension identifies the public key corresponding to the private key used to sign a certificate
+      critical: False # This extension is always noncritical and is always evaluated
       value:
         - keyid:always
-    keyUsage:
-      critical: True
+    keyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
+      critical: True # to enforce the usage of the certificate and key
       value:
-        - digitalSignature
-        - keyEncipherment
-        - keyAgreement
-    extendedKeyUsage:
-      critical: True
+        - keyCertSign # for all CA signing certificates
+        - cRLSign # for CA signing certificates that are used to sign CRLs
+  master_extensions: &master_extensions
+    <<: *root_extensions
+  node_extensions: &node_extensions
+    <<: *master_extensions
+    basicConstraints: # PKIX recommends that this extension should not appear in end-entity certificates
+    keyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
+      critical: True # to enforce the usage of the certificate and key
+      value:
+        - digitalSignature # for SSL client certificates, S/MIME signing certificates, and object-signing certificates
+        - keyEncipherment # for SSL server certificates and S/MIME encryption certificates
+        - keyAgreement # when the subject's public key is used for key agreement
+    extendedKeyUsage: # Extended Key Usage extension indicates the purposes for which the certified public key may be used
+      critical: False # PKIX Part 1 recommends that this extension be marked noncritical
       value:
         - serverAuth
         - clientAuth
-  node_extensions: &node_extensions
-    <<: *root_extensions
-    basicConstraints:
-      critical: True
-      value:
-        - CA:FALSE
 
 keys:
   root: &root
@@ -39,7 +43,7 @@ keys:
     digest: sha256 # fingerprint method used for singing certificate requests
     cipher: des # private key cipher; leave blank to save keyfile unencrypted
     cert: &default_cert
-      subject: &default_subject # change subject content accordingly for your use
+      subject: &default_subject # change subject content accordingly for your use; must be somehow unique for each CA
         country             : "ZZ"
         state               : "Sate"
         locality            : "Locality"
@@ -47,7 +51,7 @@ keys:
         organizational_unit : "Organizational Unit"
         common_name         : "root"
       serial_number: 0
-      version: 3
+      version: 3 # Version 3 of X.509 includes the flexibility to support other topologies like bridges and meshes
       notBefore : 0 # intager seconds into future (positive) or past (neative) wrt. now
       notAfter  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
     x509_extensions:
@@ -65,7 +69,7 @@ keys:
       notBefore : 0 # or iso8601 dates format
       notAfter  : 2020-12-31 # or 2020-12-14t21:59:43.10-05:00 or 2020-12-14 21:59:43.10 -5
     x509_extensions:
-      <<: *root_extensions
+      <<: *master_extensions
   nodes:
     <<: *master
     issuer: master # inherit key config defaults from master lable
