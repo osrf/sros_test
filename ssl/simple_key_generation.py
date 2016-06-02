@@ -3,11 +3,13 @@
 from __future__ import print_function
 from OpenSSL import crypto, SSL
 import os
+import shutil
 import yaml
 import getpass
 import datetime
 import collections
 
+SROS_ROOT_PASSPHRASE = 'SROS_ROOT_PASSPHRASE'
 SROS_PASSPHRASE = 'SROS_PASSPHRASE'
 
 class KeyBlob:
@@ -113,15 +115,15 @@ class KeyBlob:
             crypto.dump_privatekey(crypto.FILETYPE_PEM, self.pkey, self.key_config['cipher'], self.passphrase))
 
 
-    def get_new_passphrase(self):
+    def get_new_passphrase(self, env):
         if 'cipher' not in self.key_config:
             self.passphrase = None
-        elif (SROS_PASSPHRASE in os.environ):
-            self.passphrase = os.environ[SROS_PASSPHRASE]
+        elif (env in os.environ):
+            self.passphrase = os.environ[env]
         else:
             while (True):
-                passphrase = getpass.getpass(prompt='Enter pass phrase for %s: '.format(self.key_name), stream=None)
-                passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for %s: '.format(self.key_name),
+                passphrase = getpass.getpass(prompt='Enter pass phrase for {}: '.format(self.key_name), stream=None)
+                passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for {}: '.format(self.key_name),
                                               stream=None)
                 if (passphrase == passphrase_):
                     break
@@ -145,14 +147,20 @@ def load_config(path):
 def create_keys(key_dir, key_blob, ca_blob=None):
     check_path(key_dir)
     key_blob.create_cert(ca_blob)
-    key_blob.get_new_passphrase()
+    if ca_blob is None:
+        env = SROS_ROOT_PASSPHRASE
+    else:
+        env = SROS_PASSPHRASE
+    key_blob.get_new_passphrase(env)
     key_blob.cert_path = os.path.join(key_dir, key_blob.key_name + '.cert')
     key_blob.key_path  = os.path.join(key_dir, key_blob.key_name + '.pem')
     key_blob.dump_cert()
     key_blob.dump_key()
 
 
-def rehash(hash_dir, keys_dict):
+def rehash(hash_dir, keys_dict, clean=False):
+    if clean:
+        shutil.rmtree(hash_dir)
     check_path(hash_dir)
     hash_list = []
     for key_name, key_blob in keys_dict.iteritems():
@@ -205,7 +213,7 @@ def simple_key_generation(keys_dir, config_path):
         keys[master_name] = master_blob
 
     hash_dir = os.path.join(keys_dir, 'public')
-    rehash(hash_dir, keys)
+    rehash(hash_dir, keys, clean=True)
 
     node_names = ['master','talker', 'listener']
     mode_names = ['client','server']
