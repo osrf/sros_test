@@ -16,6 +16,7 @@ class KeyBlob:
         self.key_config = key_config
         self.passphrase = None
 
+
     def _sort_extension_logic(self):
         x509_extensions = self.key_config['x509_extensions']
         x509_extensions = collections.OrderedDict(sorted(x509_extensions.items()))
@@ -25,6 +26,7 @@ class KeyBlob:
             x509_extensions['authorityKeyIdentifier'] = authorityKeyIdentifier
 
         self.key_config['x509_extensions'] = x509_extensions
+
 
     def _add_extensions(self, ca_blob):
         if self.key_config['x509_extensions'] is not None:
@@ -68,6 +70,7 @@ class KeyBlob:
 
         self.cert = cert
 
+
     def _generate_key(self):
         self.pkey = crypto.PKey()
         type = {
@@ -75,6 +78,7 @@ class KeyBlob:
             'dsa': crypto.TYPE_DSA,}[self.key_config['type']]
         bits = self.key_config['bits']
         self.pkey.generate_key(type, bits)
+
 
     def create_root_cert(self):
 
@@ -86,6 +90,7 @@ class KeyBlob:
         self._add_extensions(self)
         self.cert.sign(self.pkey, self.key_config['digest'])
 
+
     def create_singed_cert(self, ca_blob):
 
         self._generate_key()
@@ -96,15 +101,18 @@ class KeyBlob:
         self._add_extensions(ca_blob)
         self.cert.sign(ca_blob.pkey, ca_blob.key_config['digest'])
 
+
     def dump_cert(self, cert_dir):
         cert_path = os.path.join(cert_dir, self.key_name + '.cert')
         open(cert_path, "wt").write(
             crypto.dump_certificate(crypto.FILETYPE_PEM, self.cert))
 
+
     def dump_key(self, key_dir):
         key_path  = os.path.join(key_dir, self.key_name + '.pem')
         open(key_path, "wt").write(
             crypto.dump_privatekey(crypto.FILETYPE_PEM, self.pkey, self.key_config['cipher'], self.passphrase))
+
 
     def get_new_passphrase(self):
         if 'cipher' not in self.key_config:
@@ -176,16 +184,20 @@ def simple_key_generation(keys_dir, config_path):
         create_singed_keys(master_dir, master_blob, root_blob)
         keys[master_name] = master_blob
 
-    nodes = ['client', 'server']
+    node_names = ['master','talker', 'listener']
+    mode_names = ['client','server']
     node_config = config['keys']['nodes']
-    start = node_config['cert']['serial_number']
+    serial_number = node_config['cert']['serial_number']
 
-    for serial_number, node_name in enumerate(nodes, start):
-        node_config['cert']['serial_number'] = serial_number
-        node_blob = KeyBlob(node_name, node_config)
-        node_dir = os.path.join(keys_dir, node_name)
-        create_singed_keys(node_dir, node_blob, master_blob)
-        keys[node_name] = node_blob
+    for node in node_names:
+        node_dir = os.path.join(keys_dir, node)
+        for mode in mode_names:
+            node_name = node + '.' + mode
+            node_config['cert']['serial_number'] = serial_number
+            node_blob = KeyBlob(node_name, node_config)
+            create_singed_keys(node_dir, node_blob, master_blob)
+            keys[node_name] = node_blob
+            serial_number += 1
 
 
 if __name__ == "__main__":
