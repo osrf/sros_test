@@ -57,6 +57,7 @@ class KeyBlob:
         cert.get_subject().OU = cert_config['subject']['organizational_unit']
         cert.get_subject().CN = cert_config['subject']['common_name']
         cert.set_serial_number(cert_config['serial_number'])
+        cert.set_version(cert_config['version']-1)
 
         if isinstance(cert_config['notBefore'], int):
             cert.gmtime_adj_notBefore(cert_config['notBefore'])

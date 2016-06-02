@@ -47,6 +47,7 @@ keys:
         organizational_unit : "Organizational Unit"
         common_name         : "root"
       serial_number: 0
+      version: 3
       notBefore : 0 # intager seconds into future (positive) or past (neative) wrt. now
       notAfter  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
     x509_extensions:
