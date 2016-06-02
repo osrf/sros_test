@@ -38,12 +38,13 @@ class KeyBlob:
             x509_extensions = self.key_config['x509_extensions']
 
             for type_name in x509_extensions:
-                critical = x509_extensions[type_name]['critical']
-                value = ", ".join(x509_extensions[type_name]['value'])
-                subject = self.cert
-                issuer = ca_blob.cert
-                extension = crypto.X509Extension(type_name, critical, value, subject, issuer)
-                self.cert.add_extensions([extension])
+                if x509_extensions[type_name] is not None:
+                    critical = x509_extensions[type_name]['critical']
+                    value = ", ".join(x509_extensions[type_name]['value'])
+                    subject = self.cert
+                    issuer = ca_blob.cert
+                    extension = crypto.X509Extension(type_name, critical, value, subject, issuer)
+                    self.cert.add_extensions([extension])
 
 
     def _generate_cert(self):
