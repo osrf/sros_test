@@ -226,6 +226,7 @@ def simple_key_generation(keys_dir, config_path):
         for mode in mode_names:
             node_name = node + '.' + mode
             node_config['cert']['serial_number'] = serial_number
+            node_config['cert']['subject']['common_name'] = node_name
             node_blob = KeyBlob(node_name, node_config)
             create_keys(node_dir, node_blob, master_blob)
             keys[node_name] = node_blob
