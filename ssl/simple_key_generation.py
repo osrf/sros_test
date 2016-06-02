@@ -160,7 +160,7 @@ def create_keys(key_dir, key_blob, ca_blob=None):
 
 
 def rehash(hash_dir, keys_dict, clean=False):
-    if clean:
+    if os.path .exists(hash_dir) and clean:
         shutil.rmtree(hash_dir)
     check_path(hash_dir)
     hash_list = []
