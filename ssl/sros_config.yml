@@ -39,13 +39,13 @@ keys:
     digest: sha256 # fingerprint method used for singing certificate requests
     cipher: des # private key cipher; leave blank to save keyfile unencrypted
     cert: &default_cert
-      subject: # change subject content accordingly for your use
+      subject: &default_subject # change subject content accordingly for your use
         country             : "ZZ"
         state               : "Sate"
         locality            : "Locality"
         organization        : "Organization"
         organizational_unit : "Organizational Unit"
-        common_name         : "Common Name"
+        common_name         : "root"
       serial_number: 0
       notBefore : 0 # intager seconds into future (positive) or past (neative) wrt. now
       notAfter  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
@@ -57,6 +57,9 @@ keys:
     bits: 2048 # overide key length inherited from root
     cert:
       <<: *default_cert # forking from root cert, so include cert defaults
+      subject: # change subject content accordingly for your use
+        <<: *default_subject # forking from root cert, so include cert defaults
+        common_name         : "master"
       serial_number: 1
       notBefore : 0 # or iso8601 dates format
       notAfter  : 2020-12-31 # or 2020-12-14t21:59:43.10-05:00 or 2020-12-14 21:59:43.10 -5

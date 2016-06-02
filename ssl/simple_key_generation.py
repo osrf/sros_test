@@ -152,7 +152,34 @@ def create_keys(key_dir, key_blob, ca_blob=None):
     key_blob.dump_key()
 
 
+def rehash(hash_dir, keys_dict):
+    check_path(hash_dir)
+    hash_list = []
+    for key_name, key_blob in keys_dict.iteritems():
+        subject_name_hash = key_blob.cert.subject_name_hash()
+        hash = format(subject_name_hash, '02x')
+        hash_dict = {'hash':hash,
+                     'link_path':os.path.join(hash_dir, hash + '.0'),
+                     'cert_path':key_blob.cert_path,
+                     'key_name':key_name}
+        if os.path.exists(hash_dict['link_path']):
+            os.unlink(hash_dict['link_path'])
+        hash_list.append(hash_dict)
+
+    for hash_dict in hash_list:
+        try:
+            os.symlink(hash_dict['cert_path'], hash_dict['link_path'])
+        except:
+            raise ValueError("\nSubject Name Hashes from your certs are colliding!\n"
+                             "Please make sure all CA certificates subjects are unique!\n"
+                             "In no particular order...\n"
+                             "Offending cert: {}\n".format(hash_dict['key_name']) +
+                             "Offending hash: {}\n".format(hash_dict['hash']))
+
+
 def simple_key_generation(keys_dir, config_path):
+    keys_dir = os.path.abspath(keys_dir)
+    config_path = os.path.abspath(config_path)
     check_path(keys_dir)
 
     config = load_config(config_path)
@@ -176,6 +203,9 @@ def simple_key_generation(keys_dir, config_path):
 
         create_keys(master_dir, master_blob, root_blob)
         keys[master_name] = master_blob
+
+    hash_dir = os.path.join(keys_dir, 'public')
+    rehash(hash_dir, keys)
 
     node_names = ['master','talker', 'listener']
     mode_names = ['client','server']
