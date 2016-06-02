@@ -1,4 +1,48 @@
 # sros configuration file
+x509_extensions:
+  root_extensions: &root_extensions
+    basicConstraints:
+      critical: True
+      value:
+      - CA:TRUE
+      subject:
+      issuer:
+    subjectKeyIdentifier:
+      critical: True
+      value:
+      - hash
+      subject: subject
+      issuer:
+    authorityKeyIdentifier:
+      critical: True
+      value:
+      - keyid:always
+      subject:
+      issuer: issuer
+    keyUsage:
+      critical: True
+      value:
+      - digitalSignature
+      - keyEncipherment
+      - keyAgreement
+      subject:
+      issuer:
+    extendedKeyUsage:
+      critical: True
+      value:
+      - serverAuth
+      - clientAuth
+      subject:
+      issuer:
+  node_extensions: &node_extensions
+    <<: *root_extensions
+    basicConstraints:
+      critical: True
+      value:
+      - CA:FALSE
+      subject:
+      issuer:
+
 keys:
   root: &root
     issuer: # parent certificate authority; leave blank to specify as self singed
@@ -17,6 +61,8 @@ keys:
       serial_number: 0
       notBefore : 0 # intager seconds into future (positive) or past (neative) wrt. now
       notAfter  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
+    x509_extensions:
+      <<: *root_extensions
   master: &master
     <<: *root # inherit key config defaults from root lable
     issuer: root # use root as
@@ -26,6 +72,8 @@ keys:
       serial_number: 1
       notBefore : 0 # or iso8601 dates format
       notAfter  : 2020-12-31 # or 2020-12-14t21:59:43.10-05:00 or 2020-12-14 21:59:43.10 -5
+    x509_extensions:
+      <<: *root_extensions
   nodes:
     <<: *master
     issuer: master # inherit key config defaults from master lable
@@ -35,3 +83,5 @@ keys:
       serial_number: 2 # starting serial_number index for incrementing count
       notBefore : 0 # or OpenSSL's crypto string format
       notAfter  : "20201231215943Z" # YYYYMMDDhhmmssZ or YYYYMMDDhhmmss+hhmm or YYYYMMDDhhmmss-hhmm
+    x509_extensions:
+      <<: *node_extensions

@@ -6,6 +6,7 @@ import os
 import yaml
 import getpass
 import datetime
+import collections
 
 SROS_PASSPHRASE = 'SROS_PASSPHRASE'
 
@@ -14,6 +15,34 @@ class KeyBlob:
         self.key_name = key_name
         self.key_config = key_config
         self.passphrase = None
+
+    def _sort_extension_logic(self):
+        x509_extensions = self.key_config['x509_extensions']
+        x509_extensions = collections.OrderedDict(sorted(x509_extensions.items()))
+
+        if 'authorityKeyIdentifier' in x509_extensions:
+            authorityKeyIdentifier = x509_extensions.pop('authorityKeyIdentifier')
+            x509_extensions['authorityKeyIdentifier'] = authorityKeyIdentifier
+
+        self.key_config['x509_extensions'] = x509_extensions
+
+    def _add_extensions(self, ca_blob):
+        if self.key_config['x509_extensions'] is not None:
+            self._sort_extension_logic()
+            x509_extensions = self.key_config['x509_extensions']
+
+            for type_name in x509_extensions:
+                critical = x509_extensions[type_name]['critical']
+                value = ", ".join(x509_extensions[type_name]['value'])
+                subject = x509_extensions[type_name]['subject']
+                if subject is not None:
+                    subject = self.cert
+                issuer = x509_extensions[type_name]['issuer']
+                if issuer is not None:
+                    issuer = ca_blob.cert
+                extension = crypto.X509Extension(type_name, critical, value, subject, issuer)
+                self.cert.add_extensions([extension])
+
 
     def _generate_cert(self):
         cert = crypto.X509()
@@ -58,6 +87,7 @@ class KeyBlob:
 
         self.cert.set_issuer(self.cert.get_subject())
         self.cert.set_pubkey(self.pkey)
+        self._add_extensions(self)
         self.cert.sign(self.pkey, self.key_config['digest'])
 
     def create_singed_cert(self, ca_blob):
@@ -67,6 +97,7 @@ class KeyBlob:
 
         self.cert.set_issuer(ca_blob.cert.get_subject())
         self.cert.set_pubkey(self.pkey)
+        self._add_extensions(ca_blob)
         self.cert.sign(ca_blob.pkey, ca_blob.key_config['digest'])
 
     def dump_cert(self, cert_dir):
