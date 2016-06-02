@@ -235,4 +235,4 @@ def simple_key_generation(keys_dir, config_path):
 
 
 if __name__ == "__main__":
-    simple_key_generation("./tmp", "sros_config.yml")
+    simple_key_generation("./tmp/good", "sros_config.yml")

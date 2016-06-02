@@ -4,11 +4,14 @@ import os
 import ssl
 import socket
 
-keydir = 'keys'
-mode = 'good'
-capath = os.path.join(keydir,mode,'public')
-certfile = os.path.join(keydir,mode,'client','client.cert')
-keyfile = os.path.join(keydir,mode,'client','client.pem')
+keydir = 'tmp'
+role = 'good'
+node = 'talker'
+mode = '.client'
+
+capath = os.path.join(keydir,role,'public')
+certfile = os.path.join(keydir,role,node,node + mode + '.cert')
+keyfile  = os.path.join(keydir,role,node,node + mode + '.pem')
 
 context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 context.verify_mode = ssl.CERT_REQUIRED
