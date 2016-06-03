@@ -13,7 +13,15 @@ SROS_ROOT_PASSPHRASE = 'SROS_ROOT_PASSPHRASE'
 SROS_PASSPHRASE = 'SROS_PASSPHRASE'
 
 class KeyBlob:
+    '''
+    This class is used to load or generate keys and certificates with openssl
+    '''
     def __init__(self, key_name, key_config):
+        '''
+        Initializes and sets class attributes
+        :param key_name: string of key name
+        :param key_config: dict of key configuration
+        '''
         self.key_name = key_name
         self.key_config = key_config
         self.passphrase = None
@@ -22,6 +30,10 @@ class KeyBlob:
 
 
     def _sort_extension_logic(self):
+        '''
+        Reorders x509_extensions dict so that extensions are applied in a proper order
+        :return: None
+        '''
         x509_extensions = self.key_config['x509_extensions']
         x509_extensions = collections.OrderedDict(sorted(x509_extensions.items()))
 
@@ -33,6 +45,11 @@ class KeyBlob:
 
 
     def _add_extensions(self, ca_blob):
+        '''
+        Adds extensions to certificate
+        :param ca_blob: KeyBlob of ca used when extension may need issuer's cert
+        :return: None
+        '''
         if self.key_config['x509_extensions'] is not None:
             self._sort_extension_logic()
             x509_extensions = self.key_config['x509_extensions']
@@ -48,6 +65,10 @@ class KeyBlob:
 
 
     def _generate_cert(self):
+        '''
+        Generates X509 certificate and applies subject and expiration info
+        :return: None
+        '''
         cert = crypto.X509()
         cert_config = self.key_config['cert']
 
@@ -78,6 +99,10 @@ class KeyBlob:
 
 
     def _generate_key(self):
+        '''
+        Generates key pair using type and length specified in key_config
+        :return: None
+        '''
         self.pkey = crypto.PKey()
         type = {
             'rsa': crypto.TYPE_RSA,
@@ -87,6 +112,11 @@ class KeyBlob:
 
 
     def create_cert(self, ca_blob=None):
+        '''
+        Create certificate and singe using key pair
+        :param ca_blob: KeyBlob used and CA, when None the certificate will be self singed
+        :return: None
+        '''
 
         self._generate_key()
         self._generate_cert()
@@ -104,6 +134,11 @@ class KeyBlob:
 
 
     def dump_cert(self, cert_path=None):
+        '''
+        Save certificate to disk
+        :param cert_path: full certificate file path to write to
+        :return: None
+        '''
         if cert_path is None:
             cert_path = self.cert_path
         open(cert_path, "wt").write(
@@ -111,6 +146,11 @@ class KeyBlob:
 
 
     def dump_key(self, key_path=None):
+        '''
+        Save private key to disk
+        :param key_path: full key file path to write to
+        :return: None
+        '''
         if key_path is None:
             key_path = self.key_path
         open(key_path, "wt").write(
@@ -118,6 +158,12 @@ class KeyBlob:
 
 
     def get_new_passphrase(self, env):
+        '''
+        Get new passphrase either from matching environment variable or promt from user input.
+        Only does so if cipher has been specified.
+        :param env: name of environment variable to check for passphrase
+        :return: None
+        '''
         if 'cipher' not in self.key_config:
             self.passphrase = None
         elif (env in os.environ):
@@ -133,11 +179,21 @@ class KeyBlob:
 
 
 def check_path(path):
+    '''
+    Check for path, and create it if non existing
+    :param path:
+    :return: None
+    '''
     if not os.path.exists(path):
         os.makedirs(path)
 
 
 def load_config(path):
+    '''
+    Load and parse configuration file
+    :param path: file path to configuration file
+    :return: dict representation of config structure
+    '''
     with open(path, 'r') as stream:
         try:
             config = yaml.load(stream)
@@ -147,6 +203,13 @@ def load_config(path):
 
 
 def create_keys(key_dir, key_blob, ca_blob=None):
+    '''
+    Create and save keys and certificates using initialized KeyBlob and with specified CA
+    :param key_dir: folder path to store keys and certificates
+    :param key_blob: KeyBlob used to generate and save keys and certificates
+    :param ca_blob: KeyBlob of CA used to sign generated certificates
+    :return: None
+    '''
     check_path(key_dir)
     key_blob.create_cert(ca_blob)
     if ca_blob is None:
@@ -161,6 +224,13 @@ def create_keys(key_dir, key_blob, ca_blob=None):
 
 
 def rehash(hash_dir, keys_dict, clean=False):
+    '''
+    Rehash given keys and create symbolic links to CA certificate within given directory
+    :param hash_dir: path to directory to create symbolic links
+    :param keys_dict: dict of KeBlobs create symbolic links for
+    :param clean: bool used to delete and thus clean hash_dir
+    :return: None
+    '''
     if os.path .exists(hash_dir) and clean:
         shutil.rmtree(hash_dir)
     check_path(hash_dir)
@@ -188,6 +258,12 @@ def rehash(hash_dir, keys_dict, clean=False):
 
 
 def simple_key_generation(keys_dir, config_path):
+    '''
+    Generates structure keys and certificates using configuration file
+    :param keys_dir: path to directory to store generated files
+    :param config_path: path to configuration file
+    :return:
+    '''
     keys_dir = os.path.abspath(keys_dir)
     config_path = os.path.abspath(config_path)
     check_path(keys_dir)
