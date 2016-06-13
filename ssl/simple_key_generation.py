@@ -4,6 +4,7 @@ from __future__ import print_function
 from OpenSSL import crypto, SSL
 import os
 import shutil
+import sys
 import yaml
 import getpass
 import datetime
@@ -370,5 +371,33 @@ def simple_key_generation(keys_dir, config_path):
             serial_number += 1
 
 
-if __name__ == "__main__":
-    simple_key_generation("./tmp/good", "sros_config.yml")
+def _get_parser():
+    '''
+    Construct and configure an Argument Parser
+    :return: configured ArgumentParser
+    '''
+    import argparse
+    parser = argparse.ArgumentParser(description='Generate keystore directory from configuration file.')
+
+    parser.add_argument("-k","--keys_dir",
+                      dest="keys_dir", default="./tmp/good", action="store",
+                      help="Define keystore directory to write to", metavar="DIR")
+    parser.add_argument("-c","--config_file",
+                      dest="config_file", default="sros_config.yml", action="store",
+                      help="Define configuration file to load from", metavar="CONFIG")
+    return parser
+
+
+def main(argv=sys.argv):
+    '''
+    Generate keystore directory from configuration file
+    :param argv: arguments for keystore configuration
+    :return: None
+    '''
+    parser = _get_parser()
+    args = parser.parse_args(argv[1:])
+    simple_key_generation(args.keys_dir, args.config_file)
+
+
+if __name__ == '__main__':
+    main()
