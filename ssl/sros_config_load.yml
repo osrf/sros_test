@@ -38,34 +38,27 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
 keys:
   root: &root
     issuer: # parent certificate authority; leave blank to specify as self singed
-    type: rsa # key type: rsa or dsa; leave blank to load private key from keystore
-    bits: 8192 # key length
+    type: # key type: rsa or dsa; leave blank to load private key from keystore
     digest: sha256 # fingerprint method used for singing certificate requests
     cipher: des # private key cipher; leave blank to save keyfile unencrypted
-    cert: &default_cert # certificate specifications; leave blank to load public certificate from keystore
-      subject: &default_subject # change subject content accordingly for your use; must be somehow unique for each CA
+    cert: # certificate specifications; leave blank to load public certificate from keystore
+  master: &master
+    <<: *root # inherit key config defaults from root lable
+    issuer: root # use root as
+    type: rsa # key type: rsa or dsa
+    bits: 4096 # overide key length inherited from root
+    cert: &default_cert
+      <<: *default_cert # forking from root cert, so include cert defaults
+      subject: # change subject content accordingly for your usesubject: &default_subject # change subject content accordingly for your use; must be somehow unique for each CA
         country             : "ZZ"
         state               : "Sate"
         locality            : "Locality"
         organization        : "Organization"
         organizational_unit : "Organizational Unit"
         common_name         : "root"
-      serial_number: 0
-      version: 3 # Version 3 of X.509 includes the flexibility to support other topologies like bridges and meshes
-      notBefore : 0 # intager seconds into future (positive) or past (neative) wrt. now
-      notAfter  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
-    x509_extensions:
-      <<: *root_extensions
-  master: &master
-    <<: *root # inherit key config defaults from root lable
-    issuer: root # use root as
-    bits: 4096 # overide key length inherited from root
-    cert:
-      <<: *default_cert # forking from root cert, so include cert defaults
-      subject: # change subject content accordingly for your use
-        <<: *default_subject # forking from root cert, so include cert defaults
         common_name         : "master"
       serial_number: 1
+      version: 3 # Version 3 of X.509 includes the flexibility to support other topologies like bridges and meshes
       notBefore : 0 # or iso8601 dates format
       notAfter  : 2020-12-31 # or 2020-12-14t21:59:43.10-05:00 or 2020-12-14 21:59:43.10 -5
     x509_extensions:

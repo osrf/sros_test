@@ -27,6 +27,8 @@ class KeyBlob:
         self.passphrase = None
         self.cert_path = None
         self.key_path = None
+        self.cert = None
+        self.pkey = None
 
 
     def _sort_extension_logic(self):
@@ -98,7 +100,7 @@ class KeyBlob:
         self.cert = cert
 
 
-    def _generate_key(self):
+    def generate_key(self):
         '''
         Generates key pair using type and length specified in key_config
         :return: None
@@ -118,7 +120,6 @@ class KeyBlob:
         :return: None
         '''
 
-        self._generate_key()
         self._generate_cert()
 
         if ca_blob is None:
@@ -157,6 +158,29 @@ class KeyBlob:
             crypto.dump_privatekey(crypto.FILETYPE_PEM, self.pkey, self.key_config['cipher'], self.passphrase))
 
 
+    def load_cert(self, cert_path=None):
+        '''
+        Load certificate from disk
+        :param cert_path: full certificate file path to load from
+        :return: None
+        '''
+        if cert_path is None:
+            cert_path = self.cert_path
+        with open(cert_path, 'r') as f:
+            self.cert = crypto.load_certificate(crypto.FILETYPE_PEM, f.read())
+
+    def load_key(self, key_path=None):
+        '''
+        Load private key from disk
+        :param key_path: full key file path to load from
+        :return: None
+        '''
+        if key_path is None:
+            key_path = self.key_path
+        with open(key_path, 'r') as f:
+            self.pkey = crypto.load_privatekey(crypto.FILETYPE_PEM, f.read(), self.passphrase)
+
+
     def get_new_passphrase(self, env):
         '''
         Get new passphrase either from matching environment variable or promt from user input.
@@ -176,6 +200,20 @@ class KeyBlob:
                 if (passphrase == passphrase_):
                     break
             self.passphrase = passphrase
+
+    def check_keys_match(self):
+        '''
+        Check if public and private keys are a valid key pair
+        :return: True if key pairs match, False otherwise
+        '''
+        ctx = SSL.Context(SSL.TLSv1_METHOD)
+        ctx.use_privatekey(self.pkey)
+        ctx.use_certificate(self.cert)
+        try:
+            ctx.check_privatekey()
+        except SSL.Error:
+            return False
+        return True
 
 
 def check_path(path):
@@ -202,25 +240,47 @@ def load_config(path):
     return config
 
 
-def create_keys(key_dir, key_blob, ca_blob=None):
+def get_keys(key_dir, key_blob, ca_blob=None):
     '''
-    Create and save keys and certificates using initialized KeyBlob and with specified CA
+    Loads or creates and save keys and certificates using initialized KeyBlob and with specified CA
+    loading or creating is determined by config
     :param key_dir: folder path to store keys and certificates
     :param key_blob: KeyBlob used to generate and save keys and certificates
     :param ca_blob: KeyBlob of CA used to sign generated certificates
     :return: None
     '''
     check_path(key_dir)
-    key_blob.create_cert(ca_blob)
+    key_blob.cert_path = os.path.join(key_dir, key_blob.key_name + '.cert')
+    key_blob.key_path  = os.path.join(key_dir, key_blob.key_name + '.pem')
+
+    over_write_cert = key_blob.key_config['type'] is not None
+    over_write_key = key_blob.key_config['cert'] is not None
+
     if ca_blob is None:
         env = SROS_ROOT_PASSPHRASE
     else:
         env = SROS_PASSPHRASE
-    key_blob.get_new_passphrase(env)
-    key_blob.cert_path = os.path.join(key_dir, key_blob.key_name + '.cert')
-    key_blob.key_path  = os.path.join(key_dir, key_blob.key_name + '.pem')
-    key_blob.dump_cert()
-    key_blob.dump_key()
+
+    if over_write_key:
+        key_blob.generate_key()
+        key_blob.get_new_passphrase(env)
+        key_blob.dump_key()
+    else:
+        if 'cipher' in key_blob.key_config:
+            key_blob.get_new_passphrase(env)
+        key_blob.load_key()
+
+    if over_write_cert:
+        key_blob.create_cert(ca_blob)
+        key_blob.dump_cert()
+    else:
+        key_blob.load_cert()
+
+    if not key_blob.check_keys_match():
+        raise ValueError("\nFailed to load certificate, does not match private key!\n"
+                         "New key pair was generated, public keys from old certificates do not match.\n"
+                         "Offending cert: {}\n".format(key_blob.cert_path) +
+                         "Offending key: {}\n".format(key_blob.key_path))
 
 
 def rehash(hash_dir, keys_dict, clean=False):
@@ -276,7 +336,7 @@ def simple_key_generation(keys_dir, config_path):
     keys = dict()
 
     if (config['keys'][master_name]['issuer'] is None):
-        create_keys(master_dir, master_blob)
+        get_keys(master_dir, master_blob)
         keys[master_name] = master_blob
 
     elif (config['keys'][master_name]['issuer'] in config['keys']):
@@ -284,10 +344,10 @@ def simple_key_generation(keys_dir, config_path):
         root_config = config['keys'][root_name]
         root_blob = KeyBlob(root_name, root_config)
         root_dir = os.path.join(keys_dir, root_name)
-        create_keys(root_dir, root_blob)
+        get_keys(root_dir, root_blob)
         keys[root_name] = root_blob
 
-        create_keys(master_dir, master_blob, root_blob)
+        get_keys(master_dir, master_blob, root_blob)
         keys[master_name] = master_blob
 
     hash_dir = os.path.join(keys_dir, 'public')
@@ -305,7 +365,7 @@ def simple_key_generation(keys_dir, config_path):
             node_config['cert']['serial_number'] = serial_number
             node_config['cert']['subject']['common_name'] = node_name
             node_blob = KeyBlob(node_name, node_config)
-            create_keys(node_dir, node_blob, master_blob)
+            get_keys(node_dir, node_blob, master_blob)
             keys[node_name] = node_blob
             serial_number += 1
 
