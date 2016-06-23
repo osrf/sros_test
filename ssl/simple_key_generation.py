@@ -1,6 +1,12 @@
 #!/usr/bin/python
 
 from __future__ import print_function
+from cryptography import hazmat, x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, dsa
+
 from OpenSSL import crypto, SSL
 import os
 import shutil
@@ -28,77 +34,83 @@ class KeyBlob:
         self.passphrase = None
         self.cert_path = None
         self.key_path = None
+        self.subject = None
         self.cert = None
         self.pkey = None
 
 
-    def _sort_extension_logic(self):
+    # def _sort_extension_logic(self):
+    #     '''
+    #     Reorders x509_extensions dict so that extensions are applied in a proper order
+    #     :return: None
+    #     '''
+    #     x509_extensions = self.key_config['x509_extensions']
+    #     x509_extensions = collections.OrderedDict(sorted(x509_extensions.items()))
+    #
+    #     if 'authorityKeyIdentifier' in x509_extensions:
+    #         authorityKeyIdentifier = x509_extensions.pop('authorityKeyIdentifier')
+    #         x509_extensions['authorityKeyIdentifier'] = authorityKeyIdentifier
+    #
+    #     self.key_config['x509_extensions'] = x509_extensions
+    #
+    #
+    # def _add_extensions(self, ca_blob):
+    #     '''
+    #     Adds extensions to certificate
+    #     :param ca_blob: KeyBlob of ca used when extension may need issuer's cert
+    #     :return: None
+    #     '''
+    #     if self.key_config['x509_extensions'] is not None:
+    #         self._sort_extension_logic()
+    #         x509_extensions = self.key_config['x509_extensions']
+    #
+    #         for type_name in x509_extensions:
+    #             if x509_extensions[type_name] is not None:
+    #                 critical = x509_extensions[type_name]['critical']
+    #                 value = ", ".join(x509_extensions[type_name]['value'])
+    #                 subject = self.cert
+    #                 issuer = ca_blob.cert
+    #                 extension = crypto.X509Extension(type_name, critical, value, subject, issuer)
+    #                 self.cert.add_extensions([extension])
+
+
+    def _generate_cert_builder(self):
         '''
-        Reorders x509_extensions dict so that extensions are applied in a proper order
+        Generates X509 certificate builder and applies subject and expiration info
         :return: None
         '''
-        x509_extensions = self.key_config['x509_extensions']
-        x509_extensions = collections.OrderedDict(sorted(x509_extensions.items()))
 
-        if 'authorityKeyIdentifier' in x509_extensions:
-            authorityKeyIdentifier = x509_extensions.pop('authorityKeyIdentifier')
-            x509_extensions['authorityKeyIdentifier'] = authorityKeyIdentifier
-
-        self.key_config['x509_extensions'] = x509_extensions
-
-
-    def _add_extensions(self, ca_blob):
-        '''
-        Adds extensions to certificate
-        :param ca_blob: KeyBlob of ca used when extension may need issuer's cert
-        :return: None
-        '''
-        if self.key_config['x509_extensions'] is not None:
-            self._sort_extension_logic()
-            x509_extensions = self.key_config['x509_extensions']
-
-            for type_name in x509_extensions:
-                if x509_extensions[type_name] is not None:
-                    critical = x509_extensions[type_name]['critical']
-                    value = ", ".join(x509_extensions[type_name]['value'])
-                    subject = self.cert
-                    issuer = ca_blob.cert
-                    extension = crypto.X509Extension(type_name, critical, value, subject, issuer)
-                    self.cert.add_extensions([extension])
-
-
-    def _generate_cert(self):
-        '''
-        Generates X509 certificate and applies subject and expiration info
-        :return: None
-        '''
-        cert = crypto.X509()
         cert_config = self.key_config['cert']
 
-        cert.get_subject().C = cert_config['subject']['country']
-        cert.get_subject().ST = cert_config['subject']['state']
-        cert.get_subject().L = cert_config['subject']['locality']
-        cert.get_subject().O = cert_config['subject']['organization']
-        cert.get_subject().OU = cert_config['subject']['organizational_unit']
-        cert.get_subject().CN = cert_config['subject']['common_name']
-        cert.set_serial_number(cert_config['serial_number'])
-        cert.set_version(cert_config['version']-1)
+        attributes = []
+        for attribute_key in cert_config['subject']:
+            oid = getattr(NameOID, attribute_key)
+            value = unicode(cert_config['subject'][attribute_key])
+            attribute = x509.NameAttribute(oid, value)
+            attributes.append(attribute)
+        self.subject = x509.Name(attributes)
 
-        if isinstance(cert_config['notBefore'], int):
-            cert.gmtime_adj_notBefore(cert_config['notBefore'])
-        elif isinstance(cert_config['notBefore'], datetime.date):
-            cert.set_notBefore(cert_config['notBefore'].strftime('%Y%m%d%H%M%SZ'))
+        utcnow = datetime.datetime.utcnow()
+        if isinstance(cert_config['not_valid_before'], int):
+            not_before_datetime = utcnow + datetime.timedelta(seconds=cert_config['not_valid_before'])
         else:
-            cert.set_notBefore(cert_config['notBefore'])
-
-        if isinstance(cert_config['notAfter'], int):
-            cert.gmtime_adj_notAfter(cert_config['notAfter'])
-        elif isinstance(cert_config['notAfter'], datetime.date):
-            cert.set_notAfter(cert_config['notAfter'].strftime('%Y%m%d%H%M%SZ'))
+            not_before_datetime = cert_config['not_valid_before']
+        if isinstance(cert_config['not_valid_after'], int):
+            not_after_datetime = utcnow + datetime.timedelta(seconds=cert_config['not_valid_after'])
         else:
-            cert.set_notAfter(cert_config['notAfter'])
+            not_after_datetime = cert_config['not_valid_after']
 
-        self.cert = cert
+        cert_builder = x509.CertificateBuilder().subject_name(
+            self.subject
+        ).serial_number(
+            cert_config['serial_number']
+        ).not_valid_before(
+            not_before_datetime
+        ).not_valid_after(
+            not_after_datetime
+        )
+
+        return cert_builder
 
 
     def generate_key(self):
@@ -106,12 +118,30 @@ class KeyBlob:
         Generates key pair using type and length specified in key_config
         :return: None
         '''
-        self.pkey = crypto.PKey()
-        type = {
-            'rsa': crypto.TYPE_RSA,
-            'dsa': crypto.TYPE_DSA,}[self.key_config['type']]
-        bits = self.key_config['bits']
-        self.pkey.generate_key(type, bits)
+
+        if self.key_config['key_type'] == 'rsa':
+            self.key = rsa.generate_private_key(
+                public_exponent=65537,
+                key_size=self.key_config['key_size'],
+                backend=default_backend()
+            )
+        elif self.key_config['key_type'] == 'dsa':
+            self.key = dsa.generate_private_key(
+                key_size=self.key_config['key_size'],
+                backend=default_backend()
+            )
+        else:
+            raise ValueError("\nFailed to generate key, no key_type key type provided!\n"
+                             "Offending key name: {}\n".format(self.key_name))
+
+
+    def _get_fingerprint_algorithm(self):
+        if self.key_config['fingerprint_algorithm'] is not None:
+            fingerprint_algorithm = getattr(hashes, self.key_config['fingerprint_algorithm'])()
+            return fingerprint_algorithm
+        else:
+            raise ValueError("\nNo fingerprint algorithm is specified!\n"
+                             "Offending key name: {}\n".format(self.key_name))
 
 
     def create_cert(self, ca_blob=None):
@@ -121,18 +151,22 @@ class KeyBlob:
         :return: None
         '''
 
-        self._generate_cert()
+        cert_builder = self._generate_cert_builder()
 
         if ca_blob is None:
-            self.cert.set_issuer(self.cert.get_subject())
-            self.cert.set_pubkey(self.pkey)
-            self._add_extensions(self)
-            self.cert.sign(self.pkey, self.key_config['digest'])
+            self.cert = cert_builder.issuer_name(
+                self.subject
+            ).public_key(
+                self.key.public_key()
+            ).sign(self.key, self._get_fingerprint_algorithm(), default_backend())
+            # self._add_extensions(self)
         else:
-            self.cert.set_issuer(ca_blob.cert.get_subject())
-            self.cert.set_pubkey(self.pkey)
-            self._add_extensions(ca_blob)
-            self.cert.sign(ca_blob.pkey, ca_blob.key_config['digest'])
+            self.cert = cert_builder.issuer_name(
+                ca_blob.subject
+            ).public_key(
+                self.key.public_key()
+            ).sign(ca_blob.key, ca_blob._get_fingerprint_algorithm(), default_backend())
+            # self._add_extensions(self)
 
 
     def dump_cert(self, cert_path=None):
@@ -143,8 +177,8 @@ class KeyBlob:
         '''
         if cert_path is None:
             cert_path = self.cert_path
-        open(cert_path, "wt").write(
-            crypto.dump_certificate(crypto.FILETYPE_PEM, self.cert))
+        with open(cert_path, "wb") as f:
+            f.write(self.cert.public_bytes(serialization.Encoding.PEM))
 
 
     def dump_key(self, key_path=None):
@@ -155,8 +189,18 @@ class KeyBlob:
         '''
         if key_path is None:
             key_path = self.key_path
-        open(key_path, "wt").write(
-            crypto.dump_privatekey(crypto.FILETYPE_PEM, self.pkey, self.key_config['cipher'], self.passphrase))
+
+        if self.key_config['encryption_algorithm'] is None:
+            encryption_algorithm = serialization.NoEncryption
+        else:
+            encryption_algorithm = getattr(serialization, self.key_config['encryption_algorithm'])(self.passphrase)
+
+        with open(key_path, "wb") as f:
+            f.write(self.key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=encryption_algorithm,
+            ))
 
 
     def load_cert(self, cert_path=None):
@@ -167,8 +211,9 @@ class KeyBlob:
         '''
         if cert_path is None:
             cert_path = self.cert_path
-        with open(cert_path, 'r') as f:
-            self.cert = crypto.load_certificate(crypto.FILETYPE_PEM, f.read())
+        with open(cert_path, 'rb') as f:
+            self.cert = x509.load_pem_x509_certificate(f.read(), default_backend())
+
 
     def load_key(self, key_path=None):
         '''
@@ -178,18 +223,21 @@ class KeyBlob:
         '''
         if key_path is None:
             key_path = self.key_path
-        with open(key_path, 'r') as f:
-            self.pkey = crypto.load_privatekey(crypto.FILETYPE_PEM, f.read(), self.passphrase)
+        with open(key_path, 'rb') as f:
+            self.key = serialization.load_pem_private_key(
+                f.read(),
+                password = self.passphrase,
+                backend = default_backend())
 
 
     def get_new_passphrase(self, env):
         '''
         Get new passphrase either from matching environment variable or promt from user input.
-        Only does so if cipher has been specified.
+        Only does so if encryption_algorithm has been specified.
         :param env: name of environment variable to check for passphrase
         :return: None
         '''
-        if 'cipher' not in self.key_config:
+        if 'encryption_algorithm' not in self.key_config:
             self.passphrase = None
         elif (env in os.environ):
             self.passphrase = os.environ[env]
@@ -201,6 +249,7 @@ class KeyBlob:
                 if (passphrase == passphrase_):
                     break
             self.passphrase = passphrase
+
 
     def check_keys_match(self):
         '''
@@ -254,7 +303,7 @@ def get_keys(key_dir, key_blob, ca_blob=None):
     key_blob.cert_path = os.path.join(key_dir, key_blob.key_name + '.cert')
     key_blob.key_path  = os.path.join(key_dir, key_blob.key_name + '.pem')
 
-    over_write_cert = key_blob.key_config['type'] is not None
+    over_write_cert = key_blob.key_config['key_type'] is not None
     over_write_key = key_blob.key_config['cert'] is not None
 
     if ca_blob is None:
@@ -267,7 +316,7 @@ def get_keys(key_dir, key_blob, ca_blob=None):
         key_blob.get_new_passphrase(env)
         key_blob.dump_key()
     else:
-        if 'cipher' in key_blob.key_config:
+        if 'encryption_algorithm' in key_blob.key_config:
             key_blob.get_new_passphrase(env)
         key_blob.load_key()
 
@@ -277,11 +326,11 @@ def get_keys(key_dir, key_blob, ca_blob=None):
     else:
         key_blob.load_cert()
 
-    if not key_blob.check_keys_match():
-        raise ValueError("\nFailed to load certificate, does not match private key!\n"
-                         "New key pair was generated, public keys from old certificates do not match.\n"
-                         "Offending cert: {}\n".format(key_blob.cert_path) +
-                         "Offending key: {}\n".format(key_blob.key_path))
+    # if not key_blob.check_keys_match():
+    #     raise ValueError("\nFailed to load certificate, does not match private key!\n"
+    #                      "New key pair was generated, public keys from old certificates do not match.\n"
+    #                      "Offending cert: {}\n".format(key_blob.cert_path) +
+    #                      "Offending key: {}\n".format(key_blob.key_path))
 
 
 def rehash(hash_dir, keys_dict, clean=False):
@@ -336,12 +385,12 @@ def simple_key_generation(keys_dir, config_path):
     master_blob = KeyBlob(master_name, master_config)
     keys = dict()
 
-    if (config['keys'][master_name]['issuer'] is None):
+    if (config['keys'][master_name]['issuer_name'] is None):
         get_keys(master_dir, master_blob)
         keys[master_name] = master_blob
 
-    elif (config['keys'][master_name]['issuer'] in config['keys']):
-        root_name = config['keys']['master']['issuer']
+    elif (config['keys'][master_name]['issuer_name'] in config['keys']):
+        root_name = config['keys']['master']['issuer_name']
         root_config = config['keys'][root_name]
         root_blob = KeyBlob(root_name, root_config)
         root_dir = os.path.join(keys_dir, root_name)
@@ -352,7 +401,7 @@ def simple_key_generation(keys_dir, config_path):
         keys[master_name] = master_blob
 
     hash_dir = os.path.join(keys_dir, 'public')
-    rehash(hash_dir, keys, clean=True)
+    # rehash(hash_dir, keys, clean=True)
 
     node_names = ['master','talker', 'listener']
     mode_names = ['client','server']
@@ -364,7 +413,7 @@ def simple_key_generation(keys_dir, config_path):
         for mode in mode_names:
             node_name = node + '.' + mode
             node_config['cert']['serial_number'] = serial_number
-            node_config['cert']['subject']['common_name'] = node_name
+            node_config['cert']['subject']['COMMON_NAME'] = node_name
             node_blob = KeyBlob(node_name, node_config)
             get_keys(node_dir, node_blob, master_blob)
             keys[node_name] = node_blob

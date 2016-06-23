@@ -37,47 +37,46 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
 
 keys:
   root: &root
-    issuer: # parent certificate authority; leave blank to specify as self singed
-    type: rsa # key type: rsa or dsa; leave blank to load private key from keystore
-    bits: 8192 # key length
-    digest: sha256 # fingerprint method used for singing certificate requests
-    cipher: des # private key cipher; leave blank to save keyfile unencrypted
+    issuer_name: # parent certificate authority; leave blank to specify as self singed
+    key_type: rsa # key type: rsa or dsa; leave blank to load private key from keystore
+    key_size: 2048 # key length
+    fingerprint_algorithm: SHA256 # fingerprint method used for singing certificate requests
+    encryption_algorithm: BestAvailableEncryption # private key cipher; leave blank to save keyfile unencrypted
     cert: &default_cert # certificate specifications; leave blank to load public certificate from keystore
       subject: &default_subject # change subject content accordingly for your use; must be somehow unique for each CA
-        country             : "ZZ"
-        state               : "Sate"
-        locality            : "Locality"
-        organization        : "Organization"
-        organizational_unit : "Organizational Unit"
-        common_name         : "root"
+        COUNTRY_NAME             : "ZZ"
+        STATE_OR_PROVINCE_NAME   : "Sate"
+        LOCALITY_NAME            : "Locality"
+        ORGANIZATION_NAME        : "Organization"
+        ORGANIZATIONAL_UNIT_NAME : "Organizational Unit"
+        COMMON_NAME              : "root"
       serial_number: 0
-      version: 3 # Version 3 of X.509 includes the flexibility to support other topologies like bridges and meshes
-      notBefore : 0 # intager seconds into future (positive) or past (neative) wrt. now
-      notAfter  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
-    x509_extensions:
-      <<: *root_extensions
+      not_valid_before : 0 # intager seconds into future (positive) or past (neative) wrt. now
+      not_valid_after  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
+    # x509_extensions:
+    #   <<: *root_extensions
   master: &master
     <<: *root # inherit key config defaults from root lable
-    issuer: root # use root as
-    bits: 4096 # overide key length inherited from root
+    issuer_name: root # use root as
+    key_size: 2048 # overide key length inherited from root
     cert:
       <<: *default_cert # forking from root cert, so include cert defaults
       subject: # change subject content accordingly for your use
         <<: *default_subject # forking from root cert, so include cert defaults
-        common_name         : "master"
+        COMMON_NAME         : "master"
       serial_number: 1
-      notBefore : 0 # or iso8601 dates format
-      notAfter  : 2020-12-31 # or 2020-12-14t21:59:43.10-05:00 or 2020-12-14 21:59:43.10 -5
-    x509_extensions:
-      <<: *master_extensions
+      not_valid_before : 0 # or iso8601 dates format
+      not_valid_after  : 2020-12-14t21:59:43.10-05:00 # or 2020-12-14 21:59:43.10 -5
+    # x509_extensions:
+    #   <<: *master_extensions
   nodes:
     <<: *master
-    issuer: master # inherit key config defaults from master lable
-    bits: 2048 # overide key length inherited from master
+    issuer_name: master # inherit key config defaults from master lable
+    key_size: 2048 # overide key length inherited from master
     cert:
       <<: *default_cert # forking from master cert, so include cert defaults
       serial_number: 2 # starting serial_number index for incrementing count
-      notBefore : 0 # or OpenSSL's crypto string format
-      notAfter  : "20201231215943Z" # YYYYMMDDhhmmssZ or YYYYMMDDhhmmss+hhmm or YYYYMMDDhhmmss-hhmm
-    x509_extensions:
-      <<: *node_extensions
+      not_valid_before : 0 # or iso8601 dates format
+      not_valid_after  : 2020-12-14 21:59:43.10 -5
+    # x509_extensions:
+    #   <<: *node_extensions
