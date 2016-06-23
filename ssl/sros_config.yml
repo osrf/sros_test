@@ -38,9 +38,9 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
 keys:
   root: &root
     issuer_name: # parent certificate authority; leave blank to specify as self singed
-    key_type: rsa # key type: rsa or dsa; leave blank to load private key from keystore
-    key_size: 2048 # key length
-    fingerprint_algorithm: SHA256 # fingerprint method used for singing certificate requests
+    key_type: rsa # {rsa,dsa}; leave blank to load private key from keystore
+    key_size: 2048 # key length; commonly a power of 2, and usually no less than 2048 for security
+    fingerprint_algorithm: SHA256 # fingerprint method used for singing child certificate requests
     encryption_algorithm: BestAvailableEncryption # private key cipher; leave blank to save keyfile unencrypted
     cert: &default_cert # certificate specifications; leave blank to load public certificate from keystore
       subject: &default_subject # change subject content accordingly for your use; must be somehow unique for each CA
@@ -53,8 +53,8 @@ keys:
       serial_number: 0
       not_valid_before : 0 # intager seconds into future (positive) or past (neative) wrt. now
       not_valid_after  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
-    # x509_extensions:
-    #   <<: *root_extensions
+    x509_extensions:
+      <<: *root_extensions
   master: &master
     <<: *root # inherit key config defaults from root lable
     issuer_name: root # use root as

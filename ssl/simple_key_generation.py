@@ -34,9 +34,8 @@ class KeyBlob:
         self.passphrase = None
         self.cert_path = None
         self.key_path = None
-        self.subject = None
         self.cert = None
-        self.pkey = None
+        self.key = None
 
 
     # def _sort_extension_logic(self):
@@ -88,7 +87,7 @@ class KeyBlob:
             value = unicode(cert_config['subject'][attribute_key])
             attribute = x509.NameAttribute(oid, value)
             attributes.append(attribute)
-        self.subject = x509.Name(attributes)
+        subject = x509.Name(attributes)
 
         utcnow = datetime.datetime.utcnow()
         if isinstance(cert_config['not_valid_before'], int):
@@ -101,7 +100,7 @@ class KeyBlob:
             not_after_datetime = cert_config['not_valid_after']
 
         cert_builder = x509.CertificateBuilder().subject_name(
-            self.subject
+            subject
         ).serial_number(
             cert_config['serial_number']
         ).not_valid_before(
@@ -155,14 +154,14 @@ class KeyBlob:
 
         if ca_blob is None:
             self.cert = cert_builder.issuer_name(
-                self.subject
+                cert_builder._subject_name
             ).public_key(
                 self.key.public_key()
             ).sign(self.key, self._get_fingerprint_algorithm(), default_backend())
             # self._add_extensions(self)
         else:
             self.cert = cert_builder.issuer_name(
-                ca_blob.subject
+                ca_blob.cert.subject
             ).public_key(
                 self.key.public_key()
             ).sign(ca_blob.key, ca_blob._get_fingerprint_algorithm(), default_backend())
