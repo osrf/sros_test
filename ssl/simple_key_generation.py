@@ -38,39 +38,101 @@ class KeyBlob:
         self.key = None
 
 
-    # def _sort_extension_logic(self):
-    #     '''
-    #     Reorders x509_extensions dict so that extensions are applied in a proper order
-    #     :return: None
-    #     '''
-    #     x509_extensions = self.key_config['x509_extensions']
-    #     x509_extensions = collections.OrderedDict(sorted(x509_extensions.items()))
-    #
-    #     if 'authorityKeyIdentifier' in x509_extensions:
-    #         authorityKeyIdentifier = x509_extensions.pop('authorityKeyIdentifier')
-    #         x509_extensions['authorityKeyIdentifier'] = authorityKeyIdentifier
-    #
-    #     self.key_config['x509_extensions'] = x509_extensions
-    #
-    #
-    # def _add_extensions(self, ca_blob):
-    #     '''
-    #     Adds extensions to certificate
-    #     :param ca_blob: KeyBlob of ca used when extension may need issuer's cert
-    #     :return: None
-    #     '''
-    #     if self.key_config['x509_extensions'] is not None:
-    #         self._sort_extension_logic()
-    #         x509_extensions = self.key_config['x509_extensions']
-    #
-    #         for type_name in x509_extensions:
-    #             if x509_extensions[type_name] is not None:
-    #                 critical = x509_extensions[type_name]['critical']
-    #                 value = ", ".join(x509_extensions[type_name]['value'])
-    #                 subject = self.cert
-    #                 issuer = ca_blob.cert
-    #                 extension = crypto.X509Extension(type_name, critical, value, subject, issuer)
-    #                 self.cert.add_extensions([extension])
+    def _add_extensions(self, cert_builder, ca_blob):
+        '''
+        Adds extensions to certificate
+        :param ca_blob: KeyBlob of ca used when extension may need issuer's cert
+        :return: None
+        '''
+
+        if self.key_config['x509_extensions'] is not None:
+            # self._sort_extension_logic()
+            x509_extensions = self.key_config['x509_extensions']
+
+            extension_name = 'BasicConstraints'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    extension_type = getattr(x509, extension_name)
+                    extension = extension_type(**x509_extensions[extension_name]['value'])
+                    critical = x509_extensions[extension_name]['critical']
+                    cert_builder = cert_builder.add_extension(extension, critical)
+
+            extension_name = 'SubjectKeyIdentifier'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    extension_type = getattr(x509, extension_name)
+                    extension = extension_type.from_public_key(self.key.public_key())
+                    critical = x509_extensions[extension_name]['critical']
+                    cert_builder = cert_builder.add_extension(extension, critical)
+
+            extension_name = 'SubjectAlternativeName'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    extension_type = getattr(x509, extension_name)
+                    general_names_list = x509_extensions[extension_name]['value']
+                    general_names = []
+                    for general_name in general_names_list:
+                        general_name_type = getattr(x509, general_name)
+                        value = general_names_list[general_name]
+                        if isinstance(value, str):
+                            if value in self.key_config:
+                                value = self.key_config[value]
+                        if isinstance(value, list):
+                            for v in value:
+                                general_names.append(general_name_type(unicode(v)))
+                    extension = extension_type(general_names)
+                    critical = x509_extensions[extension_name]['critical']
+                    cert_builder = cert_builder.add_extension(extension, critical)
+
+            if ca_blob is None:
+                issuer_public_key = self.key.public_key()
+            else:
+                issuer_public_key = ca_blob.cert.public_key()
+
+            extension_name = 'AuthorityKeyIdentifier'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    extension_type = getattr(x509, extension_name)
+                    extension = extension_type.from_issuer_public_key(issuer_public_key)
+                    critical = x509_extensions[extension_name]['critical']
+                    cert_builder = cert_builder.add_extension(extension, critical)
+
+            extension_name = 'KeyUsage'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    extension_type = getattr(x509, extension_name)
+                    kwargs = {}
+                    kwargz = ['digital_signature',
+                              'content_commitment',
+                              'key_encipherment',
+                              'data_encipherment',
+                              'key_agreement',
+                              'key_cert_sign',
+                              'crl_sign',
+                              'encipher_only',
+                              'decipher_only']
+                    for kwarg in kwargz: kwargs[kwarg] = False
+                    if x509_extensions[extension_name]['value'] is not None:
+                        kwargs.update(x509_extensions[extension_name]['value'])
+                    extension = extension_type(**kwargs)
+                    critical = x509_extensions[extension_name]['critical']
+                    cert_builder = cert_builder.add_extension(extension, critical)
+
+            extension_name = 'ExtendedKeyUsage'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    value = x509_extensions[extension_name]['value']
+                    if value is not None:
+                        usages = []
+                        for usage_name in value:
+                            usage = getattr(x509.oid.ExtendedKeyUsageOID, usage_name)
+                            usages.append(usage)
+                        extension_type = getattr(x509, extension_name)
+                        extension = extension_type(usages)
+                        critical = x509_extensions[extension_name]['critical']
+                        cert_builder = cert_builder.add_extension(extension, critical)
+
+        return cert_builder
 
 
     def _generate_cert_builder(self):
@@ -107,6 +169,8 @@ class KeyBlob:
             not_before_datetime
         ).not_valid_after(
             not_after_datetime
+        ).public_key(
+            self.key.public_key()
         )
 
         return cert_builder
@@ -153,19 +217,13 @@ class KeyBlob:
         cert_builder = self._generate_cert_builder()
 
         if ca_blob is None:
-            self.cert = cert_builder.issuer_name(
-                cert_builder._subject_name
-            ).public_key(
-                self.key.public_key()
+            self.cert = self._add_extensions(
+                cert_builder.issuer_name(cert_builder._subject_name), ca_blob
             ).sign(self.key, self._get_fingerprint_algorithm(), default_backend())
-            # self._add_extensions(self)
         else:
-            self.cert = cert_builder.issuer_name(
-                ca_blob.cert.subject
-            ).public_key(
-                self.key.public_key()
+            self.cert = self._add_extensions(
+                cert_builder.issuer_name(ca_blob.cert.subject), ca_blob
             ).sign(ca_blob.key, ca_blob._get_fingerprint_algorithm(), default_backend())
-            # self._add_extensions(self)
 
 
     def dump_cert(self, cert_path=None):
@@ -410,12 +468,13 @@ def simple_key_generation(keys_dir, config_path):
     for node in node_names:
         node_dir = os.path.join(keys_dir, node)
         for mode in mode_names:
-            node_name = node + '.' + mode
+            key_name = node + '.' + mode
             node_config['cert']['serial_number'] = serial_number
-            node_config['cert']['subject']['COMMON_NAME'] = node_name
-            node_blob = KeyBlob(node_name, node_config)
+            node_config['cert']['subject']['COMMON_NAME'] = key_name
+            node_config['alternative_names'] = [node]
+            node_blob = KeyBlob(key_name, node_config)
             get_keys(node_dir, node_blob, master_blob)
-            keys[node_name] = node_blob
+            keys[key_name] = node_blob
             serial_number += 1
 
 

@@ -1,39 +1,47 @@
 # sros configuration file
 x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certificate_System/8.0/html/Admin_Guide/Standard_X.509_v3_Certificate_Extensions.html
   root_extensions: &root_extensions
-    basicConstraints: # This extension is used during the certificate chain verification process to identify CA certificates and to apply certificate chain path length constraints
-      critical: True # PKIX Part 1 requires that this extension be marked critical. This extension is evaluated regardless of its criticality
-      value:
-        - CA:TRUE
-    subjectKeyIdentifier: # Subject Key Identifier extension identifies the public key certified by this certificate
-      critical: False # This extension is always noncritical
-      value:
-        - hash
-    authorityKeyIdentifier: # Authority Key Identifier extension identifies the public key corresponding to the private key used to sign a certificate
+    AuthorityKeyIdentifier: # Authority Key Identifier extension identifies the public key corresponding to the private key used to sign a certificate
       critical: False # This extension is always noncritical and is always evaluated
       value:
-        - keyid:always
-    keyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
+    BasicConstraints: # This extension is used during the certificate chain verification process to identify CA certificates and to apply certificate chain path length constraints
+      critical: True # PKIX Part 1 requires that this extension be marked critical. This extension is evaluated regardless of its criticality
+      value:
+        ca: True
+        path_length: 1
+    KeyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
       critical: True # to enforce the usage of the certificate and key
       value:
-        - keyCertSign # for all CA signing certificates
-        - cRLSign # for CA signing certificates that are used to sign CRLs
+        key_cert_sign: True # for all CA signing certificates
+        crl_sign: True # for CA signing certificates that are used to sign CRLs
+    SubjectKeyIdentifier: # Subject Key Identifier extension identifies the public key certified by this certificate
+      critical: False # This extension is always noncritical
+      value:
   master_extensions: &master_extensions
     <<: *root_extensions
+    BasicConstraints: # This extension is used during the certificate chain verification process to identify CA certificates and to apply certificate chain path length constraints
+      critical: True # PKIX Part 1 requires that this extension be marked critical. This extension is evaluated regardless of its criticality
+      value:
+        ca: True
+        path_length: 0
   node_extensions: &node_extensions
     <<: *master_extensions
-    basicConstraints: # PKIX recommends that this extension should not appear in end-entity certificates
-    keyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
+    BasicConstraints: # PKIX recommends that this extension should not appear in end-entity certificates
+    KeyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
       critical: True # to enforce the usage of the certificate and key
       value:
-        - digitalSignature # for SSL client certificates, S/MIME signing certificates, and object-signing certificates
-        - keyEncipherment # for SSL server certificates and S/MIME encryption certificates
-        - keyAgreement # when the subject's public key is used for key agreement
-    extendedKeyUsage: # Extended Key Usage extension indicates the purposes for which the certified public key may be used
+        digital_signature: True # for SSL client certificates, S/MIME signing certificates, and object-signing certificates
+        key_encipherment: True # for SSL server certificates and S/MIME encryption certificates
+        key_agreement: True # when the subject's public key is used for key agreement
+    ExtendedKeyUsage: # Extended Key Usage extension indicates the purposes for which the certified public key may be used
       critical: False # PKIX Part 1 recommends that this extension be marked noncritical
       value:
-        - serverAuth
-        - clientAuth
+        - SERVER_AUTH
+        - CLIENT_AUTH
+    SubjectAlternativeName: # Subject alternative name is an X.509 extension that provides a list of general name instances that provide a set of identities for which the certificate is valid.
+      critical: False # If the certificate's subject field is empty, this extension must be marked critical.
+      value: # dict of General Name Class types with values to use
+        UniformResourceIdentifier: alternative_names # can be list or key to value in key_config
 
 keys:
   root: &root
@@ -44,7 +52,7 @@ keys:
     encryption_algorithm: BestAvailableEncryption # private key cipher; leave blank to save keyfile unencrypted
     cert: &default_cert # certificate specifications; leave blank to load public certificate from keystore
       subject: &default_subject # change subject content accordingly for your use; must be somehow unique for each CA
-        COUNTRY_NAME             : "ZZ"
+        COUNTRY_NAME             : "ZZ" # uses two-letter country code https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
         STATE_OR_PROVINCE_NAME   : "Sate"
         LOCALITY_NAME            : "Locality"
         ORGANIZATION_NAME        : "Organization"
@@ -67,8 +75,8 @@ keys:
       serial_number: 1
       not_valid_before : 0 # or iso8601 dates format
       not_valid_after  : 2020-12-14t21:59:43.10-05:00 # or 2020-12-14 21:59:43.10 -5
-    # x509_extensions:
-    #   <<: *master_extensions
+    x509_extensions:
+      <<: *master_extensions
   nodes:
     <<: *master
     issuer_name: master # inherit key config defaults from master lable
@@ -78,5 +86,5 @@ keys:
       serial_number: 2 # starting serial_number index for incrementing count
       not_valid_before : 0 # or iso8601 dates format
       not_valid_after  : 2020-12-14 21:59:43.10 -5
-    # x509_extensions:
-    #   <<: *node_extensions
+    x509_extensions:
+      <<: *node_extensions
