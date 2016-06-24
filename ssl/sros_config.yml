@@ -1,14 +1,14 @@
 # sros configuration file
 x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certificate_System/8.0/html/Admin_Guide/Standard_X.509_v3_Certificate_Extensions.html
-  root_extensions: &root_extensions
+  root_extensions: &root_extensions # dict of extensions https://cryptography.io/en/latest/x509/reference/#x-509-extensions
     AuthorityKeyIdentifier: # Authority Key Identifier extension identifies the public key corresponding to the private key used to sign a certificate
       critical: False # This extension is always noncritical and is always evaluated
-      value:
+      value: # no value needed, auto pulled from CA
     BasicConstraints: # This extension is used during the certificate chain verification process to identify CA certificates and to apply certificate chain path length constraints
       critical: True # PKIX Part 1 requires that this extension be marked critical. This extension is evaluated regardless of its criticality
       value:
         ca: True
-        path_length: 1
+        path_length: 1 # max length of CA chain could extend from current cert
     KeyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
       critical: True # to enforce the usage of the certificate and key
       value:
@@ -16,7 +16,7 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
         crl_sign: True # for CA signing certificates that are used to sign CRLs
     SubjectKeyIdentifier: # Subject Key Identifier extension identifies the public key certified by this certificate
       critical: False # This extension is always noncritical
-      value:
+      value: # no value needed, auto pulled from self's cert subject
   master_extensions: &master_extensions
     <<: *root_extensions
     BasicConstraints: # This extension is used during the certificate chain verification process to identify CA certificates and to apply certificate chain path length constraints
@@ -35,12 +35,12 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
         key_agreement: True # when the subject's public key is used for key agreement
     ExtendedKeyUsage: # Extended Key Usage extension indicates the purposes for which the certified public key may be used
       critical: False # PKIX Part 1 recommends that this extension be marked noncritical
-      value:
+      value: # list of Extended Key Usage OID names to include https://cryptography.io/en/latest/x509/reference/#cryptography.x509.oid.ExtendedKeyUsageOID
         - SERVER_AUTH
         - CLIENT_AUTH
     SubjectAlternativeName: # Subject alternative name is an X.509 extension that provides a list of general name instances that provide a set of identities for which the certificate is valid.
       critical: False # If the certificate's subject field is empty, this extension must be marked critical.
-      value: # dict of General Name Class types with values to use
+      value: # dict of General Name Class types with values to use https://cryptography.io/en/latest/x509/reference/#general-name-classes
         UniformResourceIdentifier: alternative_names # can be list or key to value in key_config
 
 keys:
