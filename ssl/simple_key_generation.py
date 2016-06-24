@@ -403,7 +403,8 @@ def rehash(hash_dir, keys_dict, clean=False):
     check_path(hash_dir)
     hash_list = []
     for key_name, key_blob in keys_dict.iteritems():
-        subject_name_hash = key_blob.cert.subject_name_hash()
+        crypto_cert = crypto.load_certificate(crypto.FILETYPE_PEM, key_blob.cert.public_bytes(serialization.Encoding.PEM))
+        subject_name_hash = crypto_cert.subject_name_hash()
         hash = format(subject_name_hash, '02x')
         hash_dict = {'hash':hash,
                      'link_path':os.path.join(hash_dir, hash + '.0'),
@@ -458,7 +459,7 @@ def simple_key_generation(keys_dir, config_path):
         keys[master_name] = master_blob
 
     hash_dir = os.path.join(keys_dir, 'public')
-    # rehash(hash_dir, keys, clean=True)
+    rehash(hash_dir, keys, clean=True)
 
     node_names = ['master','talker', 'listener']
     mode_names = ['client','server']
