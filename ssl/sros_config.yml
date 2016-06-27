@@ -8,7 +8,7 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
       critical: True # PKIX Part 1 requires that this extension be marked critical. This extension is evaluated regardless of its criticality
       value:
         ca: True
-        path_length: 1 # max length of CA chain could extend from current cert
+        path_length: 1 # max length of CA chain tat could extend from current cert
     KeyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
       critical: True # to enforce the usage of the certificate and key
       value:
@@ -35,13 +35,25 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
         key_agreement: True # when the subject's public key is used for key agreement
     ExtendedKeyUsage: # Extended Key Usage extension indicates the purposes for which the certified public key may be used
       critical: False # PKIX Part 1 recommends that this extension be marked noncritical
-      value: # list of Extended Key Usage OID names to include https://cryptography.io/en/latest/x509/reference/#cryptography.x509.oid.ExtendedKeyUsageOID
-        - SERVER_AUTH
-        - CLIENT_AUTH
+      value: # no value needed, auto pulled from key mode
+      # value: extended_key_usage_types # can be list or key to value in key_config
+      # value: # list of Extended Key Usage OID names to include https://cryptography.io/en/latest/x509/reference/#cryptography.x509.oid.ExtendedKeyUsageOID
+      #   - CLIENT_AUTH # used for a node's client cert
+      #   - SERVER_AUTH # used for a node's server cert
+      #   - TIME_STAMPING # usesed for a node's service cert
+    NameConstraints: # PKIX recommends that this extension used in CA certificates only, but we'll abuse this for now for namespace access control
+      critical: False
+      value: # no value needed, auto pulled from graph name
+      # value: name_constraints # can be list or key to value in key_config
+      # value: # can be a dict of two URI lists
+      #   permitted_subtrees:  # list of permited namespaces
+      #   excluded_subtrees: # list of excluded namespaces
+      #     # - /my/topic/name{,space/}/* # example of URI string used in apparmor's regex like syntax
     SubjectAlternativeName: # Subject alternative name is an X.509 extension that provides a list of general name instances that provide a set of identities for which the certificate is valid.
       critical: False # If the certificate's subject field is empty, this extension must be marked critical.
-      value: # dict of General Name Class types with values to use https://cryptography.io/en/latest/x509/reference/#general-name-classes
-        UniformResourceIdentifier: alternative_names # can be list or key to value in key_config
+      value: # no value needed, auto pulled from node name
+      # value: alternative_names # can be a key to value in key_config
+      #   - /ros_agg # or can be list of strings in apparmor's regex like syntax
 
 keys:
   root: &root
@@ -51,7 +63,7 @@ keys:
     fingerprint_algorithm: SHA256 # fingerprint method used for singing child certificate requests
     encryption_algorithm: BestAvailableEncryption # private key cipher; leave blank to save keyfile unencrypted
     cert: &default_cert # certificate specifications; leave blank to load public certificate from keystore
-      subject: &default_subject # change subject content accordingly for your use; must be somehow unique for each CA
+      subject: &default_subject # change subject content accordingly for your use; must be somehow unique for each CA, https://cryptography.io/en/latest/x509/reference/#object-identifiers
         COUNTRY_NAME             : "ZZ" # uses two-letter country code https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
         STATE_OR_PROVINCE_NAME   : "Sate"
         LOCALITY_NAME            : "Locality"
