@@ -40,7 +40,8 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
       # value: # list of Extended Key Usage OID names to include https://cryptography.io/en/latest/x509/reference/#cryptography.x509.oid.ExtendedKeyUsageOID
       #   - CLIENT_AUTH # used for a node's client cert
       #   - SERVER_AUTH # used for a node's server cert
-      #   - TIME_STAMPING # usesed for a node's service cert
+      #   - TIME_STAMPING # usesed for a node's service requester cert
+      #   - EMAIL_PROTECTION # usesed for a node's service cert
     NameConstraints: # PKIX recommends that this extension used in CA certificates only, but we'll abuse this for now for namespace access control
       critical: False
       value: # no value needed, auto pulled from graph name
