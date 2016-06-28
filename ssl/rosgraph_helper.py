@@ -77,23 +77,26 @@ class GraphStructure:
         self.compile_graph()
 
     def save_graph(self, graph_path=None, sort_graph=True, save_regex=False):
-        if graph_path is None:
-            graph_path = self.graph_path
-        if sort_graph:
-            self.graph = self.sortOD(self.graph)
-        self.graph['version'] = '0'
+        dump_graph = pickle.loads(pickle.dumps(self.graph))
+        with open(graph_path, 'w') as f:
+            f.write(self.graph_dump(dump_graph, sort_graph, save_regex))
 
-        graph_dump = pickle.loads(pickle.dumps(self.graph))
+    def graph_dump(self, dump_graph, sort_graph=True, save_regex=False):
+        if sort_graph:
+            dump_graph = self.sortOD(dump_graph)
 
         if not save_regex:
-            self.uncompile_graph(graph_dump)
+            self.uncompile_graph(dump_graph)
 
-        with open(graph_path, 'w') as f:
-            yaml.add_representer(ViviDict, dict_representer)
-            yaml.add_constructor(_mapping_tag, ViviDict_constructor)
-            f.write(yaml.dump(graph_dump, default_flow_style=False))
-            yaml.add_representer(dict, dict_representer)
-            yaml.add_constructor(_mapping_tag, dict_constructor)
+        self.graph['version'] = '0'
+
+        yaml.add_representer(ViviDict, dict_representer)
+        yaml.add_constructor(_mapping_tag, ViviDict_constructor)
+        dump = yaml.dump(dump_graph, default_flow_style=False)
+        yaml.add_representer(dict, dict_representer)
+        yaml.add_constructor(_mapping_tag, dict_constructor)
+
+        return dump
 
     def check_for_mask(self, mask, masks, audit):
         index = masks.lower().find(mask)
