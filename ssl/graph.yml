@@ -1,11 +1,14 @@
 nodes:
-  /listener:
+  /listener{,1,2}:
     topics:
-      /chatter:
+      /chatter{,/}*:
         allow: r
       /rosout:
         allow: w
-  /rosout:
+    services:
+      /talker:
+        allow: c
+  /rosout*:
     topics:
       /rosout:
         allow: RW
@@ -13,8 +16,11 @@ nodes:
         allow: W
   /talker:
     topics:
-      /chatter:
+      /chatter**:
         allow: w
       /rosout:
         allow: w
+    services:
+      /talker:
+        allow: S
 version: '0'

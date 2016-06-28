@@ -26,16 +26,19 @@ SROS_PASSPHRASE = 'SROS_PASSPHRASE'
 mode_policy_type_mapping = {
     'client': 'topics',
     'server': 'topics',
+    'request': 'services',
     'service': 'services',
 }
 mode_mask_mapping = {
     'client': 'r',
     'server': 'w',
-    'service': 'x',
+    'request': 'c',
+    'service': 's',
 }
 mode_key_usage_mapping = {
     'client': 'CLIENT_AUTH',
     'server': 'SERVER_AUTH',
+    'request': 'EMAIL_PROTECTION',
     'service': 'TIME_STAMPING',
 }
 
@@ -573,7 +576,7 @@ def simple_key_generation(keys_dir, config_path):
     # node_names = ['/listener']
     node_names = ['/master','/talker', '/listener', '/rosout']
     # mode_names = ['client']
-    mode_names = ['client','server','service']
+    mode_names = ['client','server','service','request']
     key_config = config['keys']['nodes']
     serial_number = key_config['cert']['serial_number']
 
