@@ -1,0 +1,20 @@
+nodes:
+  /listener:
+    topics:
+      /chatter:
+        allow: r
+      /rosout:
+        allow: w
+  /rosout:
+    topics:
+      /rosout:
+        allow: RW
+      /rosout_agg:
+        allow: W
+  /talker:
+    topics:
+      /chatter:
+        allow: w
+      /rosout:
+        allow: w
+version: '0'

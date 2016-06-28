@@ -16,8 +16,28 @@ import getpass
 import datetime
 import collections
 
+from copy import deepcopy
+
+from rosgraph_helper import GraphStructure
+
 SROS_ROOT_PASSPHRASE = 'SROS_ROOT_PASSPHRASE'
 SROS_PASSPHRASE = 'SROS_PASSPHRASE'
+
+mode_policy_type_mapping = {
+    'client': 'topics',
+    'server': 'topics',
+    'service': 'services',
+}
+mode_mask_mapping = {
+    'client': 'r',
+    'server': 'w',
+    'service': 'x',
+}
+mode_key_usage_mapping = {
+    'client': 'CLIENT_AUTH',
+    'server': 'SERVER_AUTH',
+    'service': 'TIME_STAMPING',
+}
 
 class KeyBlob:
     '''
@@ -49,41 +69,6 @@ class KeyBlob:
             # self._sort_extension_logic()
             x509_extensions = self.key_config['x509_extensions']
 
-            extension_name = 'BasicConstraints'
-            if extension_name in x509_extensions:
-                if x509_extensions[extension_name] is not None:
-                    extension_type = getattr(x509, extension_name)
-                    extension = extension_type(**x509_extensions[extension_name]['value'])
-                    critical = x509_extensions[extension_name]['critical']
-                    cert_builder = cert_builder.add_extension(extension, critical)
-
-            extension_name = 'SubjectKeyIdentifier'
-            if extension_name in x509_extensions:
-                if x509_extensions[extension_name] is not None:
-                    extension_type = getattr(x509, extension_name)
-                    extension = extension_type.from_public_key(self.key.public_key())
-                    critical = x509_extensions[extension_name]['critical']
-                    cert_builder = cert_builder.add_extension(extension, critical)
-
-            extension_name = 'SubjectAlternativeName'
-            if extension_name in x509_extensions:
-                if x509_extensions[extension_name] is not None:
-                    extension_type = getattr(x509, extension_name)
-                    general_names_list = x509_extensions[extension_name]['value']
-                    general_names = []
-                    for general_name in general_names_list:
-                        general_name_type = getattr(x509, general_name)
-                        value = general_names_list[general_name]
-                        if isinstance(value, str):
-                            if value in self.key_config:
-                                value = self.key_config[value]
-                        if isinstance(value, list):
-                            for v in value:
-                                general_names.append(general_name_type(unicode(v)))
-                    extension = extension_type(general_names)
-                    critical = x509_extensions[extension_name]['critical']
-                    cert_builder = cert_builder.add_extension(extension, critical)
-
             if ca_blob is None:
                 issuer_public_key = self.key.public_key()
             else:
@@ -96,6 +81,28 @@ class KeyBlob:
                     extension = extension_type.from_issuer_public_key(issuer_public_key)
                     critical = x509_extensions[extension_name]['critical']
                     cert_builder = cert_builder.add_extension(extension, critical)
+
+            extension_name = 'BasicConstraints'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    extension_type = getattr(x509, extension_name)
+                    extension = extension_type(**x509_extensions[extension_name]['value'])
+                    critical = x509_extensions[extension_name]['critical']
+                    cert_builder = cert_builder.add_extension(extension, critical)
+
+            extension_name = 'ExtendedKeyUsage'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    value = x509_extensions[extension_name]['value']
+                    if value is not None:
+                        usages = []
+                        for usage_name in value:
+                            usage = getattr(x509.oid.ExtendedKeyUsageOID, usage_name)
+                            usages.append(usage)
+                        extension_type = getattr(x509, extension_name)
+                        extension = extension_type(usages)
+                        critical = x509_extensions[extension_name]['critical']
+                        cert_builder = cert_builder.add_extension(extension, critical)
 
             extension_name = 'KeyUsage'
             if extension_name in x509_extensions:
@@ -118,19 +125,42 @@ class KeyBlob:
                     critical = x509_extensions[extension_name]['critical']
                     cert_builder = cert_builder.add_extension(extension, critical)
 
-            extension_name = 'ExtendedKeyUsage'
+            extension_name = 'NameConstraints'
             if extension_name in x509_extensions:
                 if x509_extensions[extension_name] is not None:
-                    value = x509_extensions[extension_name]['value']
-                    if value is not None:
-                        usages = []
-                        for usage_name in value:
-                            usage = getattr(x509.oid.ExtendedKeyUsageOID, usage_name)
-                            usages.append(usage)
-                        extension_type = getattr(x509, extension_name)
-                        extension = extension_type(usages)
+                    extension_type = getattr(x509, extension_name)
+                    permitted_subtrees = x509_extensions[extension_name]['value']['permitted_subtrees']
+                    excluded_subtrees  = x509_extensions[extension_name]['value']['excluded_subtrees']
+                    if permitted_subtrees:
+                        for i, v in enumerate(permitted_subtrees):
+                            permitted_subtrees[i] = x509.UniformResourceIdentifier(unicode(v))
+                    if excluded_subtrees:
+                        for i, v in enumerate(excluded_subtrees):
+                            excluded_subtrees[i] = x509.UniformResourceIdentifier(unicode(v))
+                    if permitted_subtrees or excluded_subtrees:
+                        extension = extension_type(permitted_subtrees, excluded_subtrees)
                         critical = x509_extensions[extension_name]['critical']
                         cert_builder = cert_builder.add_extension(extension, critical)
+
+            extension_name = 'SubjectKeyIdentifier'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    extension_type = getattr(x509, extension_name)
+                    extension = extension_type.from_public_key(self.key.public_key())
+                    critical = x509_extensions[extension_name]['critical']
+                    cert_builder = cert_builder.add_extension(extension, critical)
+
+            extension_name = 'SubjectAlternativeName'
+            if extension_name in x509_extensions:
+                if x509_extensions[extension_name] is not None:
+                    extension_type = getattr(x509, extension_name)
+                    value = x509_extensions[extension_name]['value']
+                    general_names = []
+                    for v in value:
+                        general_names.append(x509.UniformResourceIdentifier(unicode(v)))
+                    extension = extension_type(general_names)
+                    critical = x509_extensions[extension_name]['critical']
+                    cert_builder = cert_builder.add_extension(extension, critical)
 
         return cert_builder
 
@@ -340,10 +370,7 @@ def load_config(path):
     :return: dict representation of config structure
     '''
     with open(path, 'r') as stream:
-        try:
-            config = yaml.load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
+        config = yaml.load(stream)
     return config
 
 
@@ -425,6 +452,88 @@ def rehash(hash_dir, keys_dict, clean=False):
                              "Offending hash: {}\n".format(hash_dict['hash']))
 
 
+def get_policy_constraints(node_name, node_config, graph):
+    policy_type = mode_policy_type_mapping[node_config['key_mode']]
+    mask_type = mode_mask_mapping[node_config['key_mode']]
+
+    applicable_nodes = graph.filter_nodes(node_name)
+    if applicable_nodes:
+        # print('applicable_nodes: ', applicable_nodes)
+        applicable_policies = graph.filter_policies(applicable_nodes, policy_type)
+        if applicable_policies:
+            # print('applicable_policies: ', applicable_policies)
+            applicable_allow = graph.filter_modes(applicable_policies, 'allow')
+            applicable_deny  = graph.filter_modes(applicable_policies, 'deny')
+
+            # print("applicable_allow: ", applicable_allow)
+            # print("applicable_deny: ", applicable_deny)
+
+            allow_subtrees = graph.filter_masks(applicable_allow, mask_type)
+            deny_subtrees  = graph.filter_masks(applicable_deny,  mask_type)
+
+            permitted_subtrees = graph.list_policy_namespaces(allow_subtrees)
+            excluded_subtrees  = graph.list_policy_namespaces(deny_subtrees)
+
+            if not permitted_subtrees:
+                permitted_subtrees = None
+            if not excluded_subtrees:
+                excluded_subtrees = None
+
+            applicable_name_spaces = {
+                'permitted_subtrees': permitted_subtrees,
+                'excluded_subtrees':  excluded_subtrees,
+            }
+            return applicable_name_spaces
+
+    applicable_name_spaces = {
+        'permitted_subtrees': None,
+        'excluded_subtrees' : None
+    }
+    return applicable_name_spaces
+
+
+def set_extention(extension_name, extensions_config, node_config, default):
+    extension = extensions_config[extension_name]
+    if 'value' in extension:
+        value = extension['value']
+        if value is None:
+            extension['value'] = default
+        elif isinstance(value, str):
+            extension['value'] = node_config[value]
+        elif not isinstance(value, list):
+            raise ValueError("\nImproper value for {} extension specified in config!\n".format(extension_name))
+
+
+def extention_parsing(node_name, node_config, graph_path):
+    mode_type = mode_key_usage_mapping[node_config['key_mode']]
+
+    if node_config['x509_extensions'] is not None:
+        extensions_config = node_config['x509_extensions']
+
+        extension_name = 'SubjectAlternativeName'
+        if extension_name in extensions_config:
+            set_extention(extension_name, extensions_config, node_config, [node_name])
+
+        extension_name = 'ExtendedKeyUsage'
+        if extension_name in extensions_config:
+            set_extention(extension_name, extensions_config, node_config, [mode_type])
+
+        # print("|+++++++++++++++++++++|")
+        extension_name = 'NameConstraints'
+        if extension_name in extensions_config:
+            if graph_path is not None:
+                graph = GraphStructure()
+                graph.load_graph(graph_path)
+                default = get_policy_constraints(node_name, node_config, graph)
+                # print("default: ", default)
+            else:
+                default = None
+            set_extention(extension_name, extensions_config, node_config, default)
+        # print("|+++++++++++++++++++++|")
+
+    return node_config
+
+
 def simple_key_generation(keys_dir, config_path):
     '''
     Generates structure keys and certificates using configuration file
@@ -461,19 +570,25 @@ def simple_key_generation(keys_dir, config_path):
     hash_dir = os.path.join(keys_dir, 'public')
     rehash(hash_dir, keys, clean=True)
 
-    node_names = ['master','talker', 'listener']
-    mode_names = ['client','server']
-    node_config = config['keys']['nodes']
-    serial_number = node_config['cert']['serial_number']
+    # node_names = ['/listener']
+    node_names = ['/master','/talker', '/listener', '/rosout']
+    # mode_names = ['client']
+    mode_names = ['client','server','service']
+    key_config = config['keys']['nodes']
+    serial_number = key_config['cert']['serial_number']
 
-    for node in node_names:
-        node_dir = os.path.join(keys_dir, node)
-        for mode in mode_names:
-            key_name = node + '.' + mode
+    graph_path = "graph.yml"
+
+    for node_name in node_names:
+        node_dir = os.path.join(keys_dir, 'nodes', node_name.lstrip('/'))
+        for mode_name in mode_names:
+            key_name = node_name + '.' + mode_name
+            node_config = deepcopy(key_config)
+            node_config['key_mode'] = mode_name
             node_config['cert']['serial_number'] = serial_number
             node_config['cert']['subject']['COMMON_NAME'] = key_name
-            node_config['alternative_names'] = [node]
-            node_blob = KeyBlob(key_name, node_config)
+            node_config = extention_parsing(node_name, node_config, graph_path)
+            node_blob = KeyBlob(os.path.basename(key_name), node_config)
             get_keys(node_dir, node_blob, master_blob)
             keys[key_name] = node_blob
             serial_number += 1
