@@ -461,15 +461,10 @@ def get_policy_constraints(node_name, node_config, graph):
 
     applicable_nodes = graph.filter_nodes(node_name)
     if applicable_nodes:
-        # print('applicable_nodes: ', applicable_nodes)
         applicable_policies = graph.filter_policies(applicable_nodes, policy_type)
         if applicable_policies:
-            # print('applicable_policies: ', applicable_policies)
             applicable_allow = graph.filter_modes(applicable_policies, 'allow')
             applicable_deny  = graph.filter_modes(applicable_policies, 'deny')
-
-            # print("applicable_allow: ", applicable_allow)
-            # print("applicable_deny: ", applicable_deny)
 
             allow_subtrees = graph.filter_masks(applicable_allow, mask_type)
             deny_subtrees  = graph.filter_masks(applicable_deny,  mask_type)
@@ -521,18 +516,15 @@ def extention_parsing(node_name, node_config, graph_path):
         if extension_name in extensions_config:
             set_extention(extension_name, extensions_config, node_config, [mode_type])
 
-        # print("|+++++++++++++++++++++|")
         extension_name = 'NameConstraints'
         if extension_name in extensions_config:
             if graph_path is not None:
                 graph = GraphStructure()
                 graph.load_graph(graph_path)
                 default = get_policy_constraints(node_name, node_config, graph)
-                # print("default: ", default)
             else:
                 default = None
             set_extention(extension_name, extensions_config, node_config, default)
-        # print("|+++++++++++++++++++++|")
 
     return node_config
 
@@ -565,9 +557,11 @@ def simple_key_generation(keys_dir, config_path):
         root_blob = KeyBlob(root_name, root_config)
         root_dir = os.path.join(keys_dir, root_name)
         get_keys(root_dir, root_blob)
+        print("Certificate generated: {}".format(root_name))
         keys[root_name] = root_blob
 
         get_keys(master_dir, master_blob, root_blob)
+        print("Certificate generated: {}".format(master_name))
         keys[master_name] = master_blob
 
     hash_dir = os.path.join(keys_dir, 'public')
@@ -595,6 +589,7 @@ def simple_key_generation(keys_dir, config_path):
             get_keys(node_dir, node_blob, master_blob)
             keys[key_name] = node_blob
             serial_number += 1
+            print("Certificate generated: {}".format(key_name))
 
 
 def _get_parser():
