@@ -14,7 +14,7 @@ import sys
 import yaml
 import getpass
 import datetime
-import collections
+import uuid
 
 from copy import deepcopy
 
@@ -64,8 +64,9 @@ class KeyBlob:
     def _add_extensions(self, cert_builder, ca_blob):
         '''
         Adds extensions to certificate
+        :param cert_builder: x509.CertificateBuilder used to add extensions to
         :param ca_blob: KeyBlob of ca used when extension may need issuer's cert
-        :return: None
+        :return: cert_builder; x509.CertificateBuilder with added extensions
         '''
 
         if self.key_config['x509_extensions'] is not None:
@@ -171,7 +172,7 @@ class KeyBlob:
     def _generate_cert_builder(self):
         '''
         Generates X509 certificate builder and applies subject and expiration info
-        :return: None
+        :return: cert_builder; x509.CertificateBuilder with basic subject and valid-dates added
         '''
 
         cert_config = self.key_config['cert']
@@ -193,6 +194,9 @@ class KeyBlob:
             not_after_datetime = utcnow + datetime.timedelta(seconds=cert_config['not_valid_after'])
         else:
             not_after_datetime = cert_config['not_valid_after']
+
+        if cert_config['serial_number'] is None:
+            cert_config['serial_number'] = int(uuid.uuid4())
 
         cert_builder = x509.CertificateBuilder().subject_name(
             subject
@@ -232,6 +236,10 @@ class KeyBlob:
 
 
     def _get_fingerprint_algorithm(self):
+        '''
+        Returns the fingerprint algorithm object type to use as defined in the key_config
+        :return: fingerprint_algorithm
+        '''
         if self.key_config['fingerprint_algorithm'] is not None:
             fingerprint_algorithm = getattr(hashes, self.key_config['fingerprint_algorithm'])()
             return fingerprint_algorithm
@@ -346,14 +354,7 @@ class KeyBlob:
         Check if public and private keys are a valid key pair
         :return: True if key pairs match, False otherwise
         '''
-        ctx = SSL.Context(SSL.TLSv1_METHOD)
-        ctx.use_privatekey(self.pkey)
-        ctx.use_certificate(self.cert)
-        try:
-            ctx.check_privatekey()
-        except SSL.Error:
-            return False
-        return True
+        return self.key.public_key().public_numbers() == self.cert.public_key().public_numbers()
 
 
 def check_path(path):
@@ -413,11 +414,11 @@ def get_keys(key_dir, key_blob, ca_blob=None):
     else:
         key_blob.load_cert()
 
-    # if not key_blob.check_keys_match():
-    #     raise ValueError("\nFailed to load certificate, does not match private key!\n"
-    #                      "New key pair was generated, public keys from old certificates do not match.\n"
-    #                      "Offending cert: {}\n".format(key_blob.cert_path) +
-    #                      "Offending key: {}\n".format(key_blob.key_path))
+    if not key_blob.check_keys_match():
+        raise ValueError("\nFailed to load certificate, does not match private key!\n"
+                         "New key pair was generated, public keys from old certificates do not match.\n"
+                         "Offending cert: {}\n".format(key_blob.cert_path) +
+                         "Offending key: {}\n".format(key_blob.key_path))
 
 
 def rehash(hash_dir, keys_dict, clean=False):
@@ -572,7 +573,6 @@ def simple_key_generation(keys_dir, config_path):
     # mode_names = ['client']
     mode_names = ['client','server','service','request']
     key_config = config['keys']['nodes']
-    serial_number = key_config['cert']['serial_number']
 
     graph_path = "graph.yml"
 
@@ -582,13 +582,12 @@ def simple_key_generation(keys_dir, config_path):
             key_name = node_name + '.' + mode_name
             node_config = deepcopy(key_config)
             node_config['key_mode'] = mode_name
-            node_config['cert']['serial_number'] = serial_number
-            node_config['cert']['subject']['COMMON_NAME'] = key_name
+            if 'cert' in node_config:
+                node_config['cert']['subject']['COMMON_NAME'] = key_name
             node_config = extention_parsing(node_name, node_config, graph_path)
             node_blob = KeyBlob(os.path.basename(key_name), node_config)
             get_keys(node_dir, node_blob, master_blob)
             keys[key_name] = node_blob
-            serial_number += 1
             print("Certificate generated: {}".format(key_name))
 
 

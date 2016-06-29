@@ -1,26 +1,29 @@
+# http://wiki.apparmor.net/index.php/QuickProfileLanguage#File_Globbing
+
 nodes:
-  /listener{,1,2}:
+  /**: # all nodes namespaces
+    topics: # for topic transport
+      /rosout: # for the topic namspace /rosout
+        allow: w # can publish to /rosout for logging
+  /listener{,1,2}: # for /listener, /listener1, ect.
     topics:
-      /chatter{,/}*:
-        allow: r
-      /rosout:
-        allow: w
-    services:
-      /talker:
-        allow: c
-  /rosout*:
+      /chatter{,/*}: # for the topic /chatter or any topic just under /chatter/
+        allow: r # can subscribe
+    services: # for services and requests
+      /talker: # for just the service /talker
+        allow: c # can call the service
+  /rosout*: # for all nodes starting with rosout
     topics:
       /rosout:
-        allow: RW
+        allow: r # allow /rosout to subscribe the logs
+        deny: w # specificly revoke /rosout from publishing to the same logs
       /rosout_agg:
-        allow: W
+        allow: w # allow to publish and aggregate logs
   /talker:
     topics:
-      /chatter**:
-        allow: w
-      /rosout:
-        allow: w
+      /chatter{,/**}:
+        allow: w # allow /talker to publish onto or anythong under /chatter
     services:
       /talker:
-        allow: S
+        allow: cs # allow /talker to call or serve services under /talker
 version: '0'
