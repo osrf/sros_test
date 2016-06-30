@@ -5,7 +5,7 @@ from cryptography import hazmat, x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, dsa
+from cryptography.hazmat.primitives.asymmetric import rsa, dsa, ec
 
 from OpenSSL import crypto, SSL
 import os
@@ -226,12 +226,17 @@ class KeyBlob:
         if self.key_config['key_type'] == 'rsa':
             self.key = rsa.generate_private_key(
                 public_exponent=65537,
-                key_size=self.key_config['key_size'],
+                key_size=self.key_config['key_peram'],
                 backend=default_backend()
             )
         elif self.key_config['key_type'] == 'dsa':
             self.key = dsa.generate_private_key(
-                key_size=self.key_config['key_size'],
+                key_size=self.key_config['key_peram'],
+                backend=default_backend()
+            )
+        elif self.key_config['key_type'] == 'ec':
+            self.key = ec.generate_private_key(
+                curve=getattr(ec, self.key_config['key_peram'])(),
                 backend=default_backend()
             )
         else:

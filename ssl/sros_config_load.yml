@@ -31,7 +31,7 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
       critical: False # If the certificate's subject field is empty, this extension must be marked critical.
       value: # no value needed, auto pulled from node name
       # value: alternative_names # can be a key to value in key_config
-      #   - /ros_agg # or can be list of strings in apparmor's regex like syntax
+      #   - /rosout # or can be list of strings
     SubjectKeyIdentifier: # Subject Key Identifier extension identifies the public key certified by this certificate
       critical: False # This extension is always noncritical
       value: # no value needed, auto pulled from self's cert subject
@@ -39,9 +39,9 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
 keys:
   root: &root
     issuer_name: # parent certificate authority; leave blank to specify as self singed
-    key_type: # {rsa,dsa}; leave blank to load private key from keystore
-    fingerprint_algorithm: SHA256 # fingerprint method used for singing child certificate requests
-    encryption_algorithm: BestAvailableEncryption # private key cipher; leave blank to save keyfile unencrypted
+    key_type: # {rsa,dsa,ec}; leave blank to load private key from keystore https://cryptography.io/en/latest/hazmat/primitives/interfaces/#asymmetric-interfaces
+    fingerprint_algorithm: SHA256 # fingerprint method used for singing child certificate requests https://cryptography.io/en/latest/hazmat/primitives/cryptographic-hashes/?highlight=sha256#cryptography.hazmat.primitives.hashes.Hash
+    encryption_algorithm: BestAvailableEncryption # private key cipher; leave blank to save keyfile unencrypted https://cryptography.io/en/latest/hazmat/primitives/asymmetric/serialization/#serialization-encryption-types
     cert: # certificate specifications; leave blank to load public certificate from keystore
   master: &master
     <<: *root # inherit key config defaults from root lable
@@ -49,8 +49,10 @@ keys:
   nodes:
     <<: *master
     issuer_name: master # inherit key config defaults from master lable
-    key_type: rsa # {rsa,dsa}; leave blank to load private key from keystore
-    key_size: 2048 # key length; commonly a power of 2, and usually no less than 2048 for security
+    key_type: rsa # {rsa,dsa,ec}; leave blank to load private key from keystore https://cryptography.io/en/latest/hazmat/primitives/interfaces/#asymmetric-interfaces
+    key_peram: 2048 # key length; commonly a power of 2, and usually no less than 2048 for security https://cryptography.io/en/latest/hazmat/primitives/asymmetric/rsa/?highlight=2048#generation
+    # key_type: ec # {rsa,dsa,ec}; leave blank to load private key from keystore https://cryptography.io/en/latest/hazmat/primitives/asymmetric/
+    # key_peram: SECP384R1 # key curve; https://cryptography.io/en/latest/hazmat/primitives/asymmetric/ec/#elliptic-curves
     cert: &default_cert # certificate specifications; leave blank to load public certificate from keystore
       subject: &default_subject # change subject content accordingly for your use; must be somehow unique for each CA, https://cryptography.io/en/latest/x509/reference/#object-identifiers
         COUNTRY_NAME             : "ZZ" # uses two-letter country code https://en.wikipedia.org/wiki/ISO_3166-1_alpha-2
