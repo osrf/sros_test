@@ -46,14 +46,14 @@ class KeyBlob:
     '''
     This class is used to load or generate keys and certificates with openssl
     '''
-    def __init__(self, key_name, key_config):
+    def __init__(self, name, config):
         '''
         Initializes and sets class attributes
-        :param key_name: string of key name
-        :param key_config: dict of key configuration
+        :param name: string of key name
+        :param config: dict of key configuration
         '''
-        self.key_name = key_name
-        self.key_config = key_config
+        self.name = name
+        self.config = config
         self.passphrase = None
         self.cert_path = None
         self.key_path = None
@@ -69,9 +69,9 @@ class KeyBlob:
         :return: cert_builder; x509.CertificateBuilder with added extensions
         '''
 
-        if self.key_config['cert']['x509_extensions'] is not None:
+        if self.config['cert']['x509_extensions'] is not None:
             # self._sort_extension_logic()
-            x509_extensions = self.key_config['cert']['x509_extensions']
+            x509_extensions = self.config['cert']['x509_extensions']
 
             if ca_blob is None:
                 issuer_public_key = self.key.public_key()
@@ -179,7 +179,7 @@ class KeyBlob:
         :return: cert_builder; x509.CertificateBuilder with basic subject and valid-dates added
         '''
 
-        cert_config = self.key_config['cert']
+        cert_config = self.config['cert']
 
         attributes = []
         for attribute_key in cert_config['subject']:
@@ -219,42 +219,42 @@ class KeyBlob:
 
     def generate_key(self):
         '''
-        Generates key pair using type and length specified in key_config
+        Generates key pair using type and length specified in config
         :return: None
         '''
 
-        if self.key_config['key']['key_type'] == 'rsa':
+        if self.config['key']['key_type'] == 'rsa':
             self.key = rsa.generate_private_key(
                 public_exponent=65537,
-                key_size=self.key_config['key']['key_peram'],
+                key_size=self.config['key']['key_peram'],
                 backend=default_backend()
             )
-        elif self.key_config['key']['key_type'] == 'dsa':
+        elif self.config['key']['key_type'] == 'dsa':
             self.key = dsa.generate_private_key(
-                key_size=self.key_config['key']['key_peram'],
+                key_size=self.config['key']['key_peram'],
                 backend=default_backend()
             )
-        elif self.key_config['key']['key_type'] == 'ec':
+        elif self.config['key']['key_type'] == 'ec':
             self.key = ec.generate_private_key(
-                curve=getattr(ec, self.key_config['key']['key_peram'])(),
+                curve=getattr(ec, self.config['key']['key_peram'])(),
                 backend=default_backend()
             )
         else:
             raise ValueError("\nFailed to generate key, no key_type key type provided!\n"
-                             "Offending key name: {}\n".format(self.key_name))
+                             "Offending key name: {}\n".format(self.name))
 
 
     def _get_fingerprint_algorithm(self):
         '''
-        Returns the fingerprint algorithm object type to use as defined in the key_config
+        Returns the fingerprint algorithm object type to use as defined in the config
         :return: fingerprint_algorithm
         '''
-        if self.key_config['fingerprint_algorithm'] is not None:
-            fingerprint_algorithm = getattr(hashes, self.key_config['fingerprint_algorithm'])()
+        if self.config['fingerprint_algorithm'] is not None:
+            fingerprint_algorithm = getattr(hashes, self.config['fingerprint_algorithm'])()
             return fingerprint_algorithm
         else:
             raise ValueError("\nNo fingerprint algorithm is specified!\n"
-                             "Offending key name: {}\n".format(self.key_name))
+                             "Offending key name: {}\n".format(self.name))
 
 
     def create_cert(self, ca_blob=None):
@@ -297,10 +297,10 @@ class KeyBlob:
         if key_path is None:
             key_path = self.key_path
 
-        if self.key_config['encryption_algorithm'] is None:
+        if self.config['encryption_algorithm'] is None:
             encryption_algorithm = serialization.NoEncryption
         else:
-            encryption_algorithm = getattr(serialization, self.key_config['encryption_algorithm'])(self.passphrase)
+            encryption_algorithm = getattr(serialization, self.config['encryption_algorithm'])(self.passphrase)
 
         with open(key_path, "wb") as f:
             f.write(self.key.private_bytes(
@@ -344,14 +344,14 @@ class KeyBlob:
         :param env: name of environment variable to check for passphrase
         :return: None
         '''
-        if 'encryption_algorithm' not in self.key_config:
+        if 'encryption_algorithm' not in self.config:
             self.passphrase = None
         elif (env in os.environ):
             self.passphrase = os.environ[env]
         else:
             while (True):
-                passphrase = getpass.getpass(prompt='Enter pass phrase for {}: '.format(self.key_name), stream=None)
-                passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for {}: '.format(self.key_name),
+                passphrase = getpass.getpass(prompt='Enter pass phrase for {}: '.format(self.name), stream=None)
+                passphrase_ = getpass.getpass(prompt='Verifying - Enter pass phrase for {}: '.format(self.name),
                                               stream=None)
                 if (passphrase == passphrase_):
                     break
@@ -397,11 +397,11 @@ def get_keys(key_dir, key_blob, ca_blob=None):
     :return: None
     '''
     check_path(key_dir)
-    key_blob.cert_path = os.path.join(key_dir, key_blob.key_name + '.cert')
-    key_blob.key_path  = os.path.join(key_dir, key_blob.key_name + '.pem')
+    key_blob.cert_path = os.path.join(key_dir, key_blob.name + '.cert')
+    key_blob.key_path  = os.path.join(key_dir, key_blob.name + '.pem')
 
-    over_write_cert = key_blob.key_config['key'] is not None
-    over_write_key = key_blob.key_config['cert'] is not None
+    over_write_cert = key_blob.config['key'] is not None
+    over_write_key = key_blob.config['cert'] is not None
 
     if ca_blob is None:
         env = SROS_ROOT_PASSPHRASE
@@ -413,7 +413,7 @@ def get_keys(key_dir, key_blob, ca_blob=None):
         key_blob.get_new_passphrase(env)
         key_blob.dump_key()
     else:
-        if 'encryption_algorithm' in key_blob.key_config:
+        if 'encryption_algorithm' in key_blob.config:
             key_blob.get_new_passphrase(env)
         key_blob.load_key()
 
