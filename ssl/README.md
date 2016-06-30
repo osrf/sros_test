@@ -1,8 +1,12 @@
 # SSL examples using python
 This is a collection of simple examples using python and SSL, this includes:
 
-* simple key and certificate generation using OpenSSL's crypto library
+* simple key and certificate generation using python libraries:
+    * [cryptography](https://cryptography.io)
+    * [pyopenssl](https://pyopenssl.readthedocs.io/en/stable/)
+    * [pyyaml](http://pyyaml.org/wiki/PyYAMLDocumentation)
 * simple client and server authentication using generated Certificate Authority chain
+* embedding graph based access control into Certificate
 
 These examples have been constructed with sros in mind as a later use case.
 

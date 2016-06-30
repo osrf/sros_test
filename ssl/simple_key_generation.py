@@ -578,8 +578,6 @@ def simple_key_generation(keys_dir, config_path):
     mode_names = ['client','server','service','request']
     key_config = config['keys']['nodes']
 
-    graph_path = "graph.yml"
-
     for node_name in node_names:
         node_dir = os.path.join(keys_dir, 'nodes', node_name.lstrip('/'))
         for mode_name in mode_names:
@@ -588,6 +586,9 @@ def simple_key_generation(keys_dir, config_path):
             node_config['key_mode'] = mode_name
             if 'cert' in node_config:
                 node_config['cert']['subject']['COMMON_NAME'] = key_name
+                graph_path = os.path.join(os.path.dirname(config_path), node_config['cert']['graph_path'])
+            else:
+                graph_path = None
             node_config = extention_parsing(node_name, node_config, graph_path)
             node_blob = KeyBlob(os.path.basename(key_name), node_config)
             get_keys(node_dir, node_blob, master_blob)

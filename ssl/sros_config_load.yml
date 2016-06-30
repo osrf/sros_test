@@ -62,5 +62,6 @@ keys:
       serial_number: # if no value provided, then UUID4 is used https://cryptography.io/en/latest/x509/reference/?highlight=uuid4#cryptography.x509.CertificateBuilder.serial_number
       not_valid_before : 0 # intager seconds into future (positive) or past (neative) wrt. now
       not_valid_after  : 315360000 # 10yrs * 365days * 24hours * 60min * 60sec
+      graph_path: graph.yml
     x509_extensions:
       <<: *node_extensions
