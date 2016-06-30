@@ -10,8 +10,8 @@ node = 'listener'
 mode = '.server'
 
 capath = os.path.join(keydir,role,'public')
-certfile = os.path.join(keydir,role,node,node + mode + '.cert')
-keyfile  = os.path.join(keydir,role,node,node + mode + '.pem')
+certfile = os.path.join(keydir,role,'nodes',node,node + mode + '.cert')
+keyfile  = os.path.join(keydir,role,'nodes',node,node + mode + '.pem')
 
 context = ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)
 context.verify_mode = ssl.CERT_REQUIRED

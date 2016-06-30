@@ -20,7 +20,7 @@ To generate the keys within the local directory, we can call the key generation 
 ``` terminal
 SROS_ROOT_PASSPHRASE=root
 SROS_PASSPHRASE=sros
-./simple_key_generation.py
+./simple_key_generation.py --keys_dir ./tmp/good/ --config_file sros_config.yml
 ```
 
 ## Using keys
