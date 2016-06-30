@@ -69,9 +69,9 @@ class KeyBlob:
         :return: cert_builder; x509.CertificateBuilder with added extensions
         '''
 
-        if self.key_config['x509_extensions'] is not None:
+        if self.key_config['cert']['x509_extensions'] is not None:
             # self._sort_extension_logic()
-            x509_extensions = self.key_config['x509_extensions']
+            x509_extensions = self.key_config['cert']['x509_extensions']
 
             if ca_blob is None:
                 issuer_public_key = self.key.public_key()
@@ -223,20 +223,20 @@ class KeyBlob:
         :return: None
         '''
 
-        if self.key_config['key_type'] == 'rsa':
+        if self.key_config['key']['key_type'] == 'rsa':
             self.key = rsa.generate_private_key(
                 public_exponent=65537,
-                key_size=self.key_config['key_peram'],
+                key_size=self.key_config['key']['key_peram'],
                 backend=default_backend()
             )
-        elif self.key_config['key_type'] == 'dsa':
+        elif self.key_config['key']['key_type'] == 'dsa':
             self.key = dsa.generate_private_key(
-                key_size=self.key_config['key_peram'],
+                key_size=self.key_config['key']['key_peram'],
                 backend=default_backend()
             )
-        elif self.key_config['key_type'] == 'ec':
+        elif self.key_config['key']['key_type'] == 'ec':
             self.key = ec.generate_private_key(
-                curve=getattr(ec, self.key_config['key_peram'])(),
+                curve=getattr(ec, self.key_config['key']['key_peram'])(),
                 backend=default_backend()
             )
         else:
@@ -400,7 +400,7 @@ def get_keys(key_dir, key_blob, ca_blob=None):
     key_blob.cert_path = os.path.join(key_dir, key_blob.key_name + '.cert')
     key_blob.key_path  = os.path.join(key_dir, key_blob.key_name + '.pem')
 
-    over_write_cert = key_blob.key_config['key_type'] is not None
+    over_write_cert = key_blob.key_config['key'] is not None
     over_write_key = key_blob.key_config['cert'] is not None
 
     if ca_blob is None:
@@ -515,8 +515,8 @@ def set_extention(extension_name, extensions_config, node_config, default):
 def extention_parsing(node_name, node_config, graph_path):
     mode_type = mode_key_usage_mapping[node_config['key_mode']]
 
-    if node_config['x509_extensions'] is not None:
-        extensions_config = node_config['x509_extensions']
+    if node_config['cert']['x509_extensions'] is not None:
+        extensions_config = node_config['cert']['x509_extensions']
 
         extension_name = 'SubjectAlternativeName'
         if extension_name in extensions_config:
