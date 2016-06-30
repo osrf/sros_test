@@ -27,12 +27,6 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
   node_extensions: &node_extensions
     <<: *master_extensions
     BasicConstraints: # PKIX recommends that this extension should not appear in end-entity certificates
-    KeyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
-      critical: True # to enforce the usage of the certificate and key
-      value:
-        digital_signature: True # for SSL client certificates, S/MIME signing certificates, and object-signing certificates
-        key_encipherment: True # for SSL server certificates and S/MIME encryption certificates
-        key_agreement: True # when the subject's public key is used for key agreement
     ExtendedKeyUsage: # Extended Key Usage extension indicates the purposes for which the certified public key may be used
       critical: False # PKIX Part 1 recommends that this extension be marked noncritical
       value: # no value needed, auto pulled from key mode
@@ -42,6 +36,12 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
       #   - SERVER_AUTH # used for a node's server cert
       #   - TIME_STAMPING # usesed for a node's service requester cert
       #   - EMAIL_PROTECTION # usesed for a node's service cert
+    KeyUsage: # Key Usage extension defines the purpose of the key contained in the certificate
+      critical: True # to enforce the usage of the certificate and key
+      value:
+        digital_signature: True # for SSL client certificates, S/MIME signing certificates, and object-signing certificates
+        key_encipherment: True # for SSL server certificates and S/MIME encryption certificates
+        key_agreement: True # when the subject's public key is used for key agreement
     NameConstraints: # PKIX recommends that this extension used in CA certificates only, but we'll abuse this for now for namespace access control
       critical: False
       value: # no value needed, auto pulled from graph name
