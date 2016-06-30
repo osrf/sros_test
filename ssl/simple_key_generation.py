@@ -143,8 +143,12 @@ class KeyBlob:
                             excluded_subtrees[i] = x509.UniformResourceIdentifier(unicode(v))
                     if permitted_subtrees or excluded_subtrees:
                         extension = extension_type(permitted_subtrees, excluded_subtrees)
-                        critical = x509_extensions[extension_name]['critical']
-                        cert_builder = cert_builder.add_extension(extension, critical)
+                    else:
+                        permitted_subtrees = None
+                        excluded_subtrees  = [x509.UniformResourceIdentifier(unicode("**"))]
+                        extension = extension_type(permitted_subtrees, excluded_subtrees)
+                    critical = x509_extensions[extension_name]['critical']
+                    cert_builder = cert_builder.add_extension(extension, critical)
 
             extension_name = 'SubjectKeyIdentifier'
             if extension_name in x509_extensions:
