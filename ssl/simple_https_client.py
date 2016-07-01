@@ -6,7 +6,7 @@ import socket
 
 keydir = 'tmp'
 role = 'good'
-node = 'talker'
+node = 'listener'
 mode = '.client'
 
 capath = os.path.join(keydir,role,'public')
