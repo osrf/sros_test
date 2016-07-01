@@ -3,11 +3,13 @@ from __future__ import print_function
 import os
 import ssl
 import socket
+from simple_https_helper import validate_cert
 
 keydir = 'tmp'
 role = 'good'
 node = 'talker'
 mode = '.server'
+topic = '/chatter'
 
 capath = os.path.join(keydir,role,'public')
 certfile = os.path.join(keydir,role,'nodes',node,node + mode + '.cert')
@@ -26,14 +28,23 @@ bindsocket.listen(5)
 while True:
     try:
         newsocket, fromaddr = bindsocket.accept()
-        print('accepted')
+        print('Accepted')
         conn = context.wrap_socket(newsocket, server_side=True)
-        conn.send('hello')
-        data = conn.read()
-        print('read: [%s]' % data)
-        conn.shutdown(socket.SHUT_RDWR)
-        conn.close()
-        print('closed')
+        # try:
+        is_valid = validate_cert(cert=conn.getpeercert(binary_form=True), topic=topic)
+        # except:
+        #     is_valid = False
+        if is_valid:
+            conn.send('hello')
+            data = conn.read()
+            print('read: [%s]' % data)
+            conn.shutdown(socket.SHUT_RDWR)
+            conn.close()
+            print('Closed: All done')
+        else:
+            conn.shutdown(socket.SHUT_RDWR)
+            conn.close()
+            print('Closed: Access Denied')
     except KeyboardInterrupt:
         print('\n\nadios amigo\n')
         break

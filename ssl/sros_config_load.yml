@@ -20,7 +20,7 @@ x509_extensions: # https://access.redhat.com/documentation/en-US/Red_Hat_Certifi
         key_encipherment: True # for SSL server certificates and S/MIME encryption certificates
         key_agreement: True # when the subject's public key is used for key agreement
     NameConstraints: # PKIX recommends that this extension used in CA certificates only, but we'll abuse this for now for namespace access control
-      critical: False
+      critical: True
       value: # no value needed, auto pulled from graph name
       # value: name_constraints # can be list or key to value in key_config
       # value: # can be a dict of two URI lists
