@@ -23,23 +23,29 @@ from rosgraph_helper import GraphStructure
 SROS_ROOT_PASSPHRASE = 'SROS_ROOT_PASSPHRASE'
 SROS_PASSPHRASE = 'SROS_PASSPHRASE'
 
-mode_policy_type_mapping = {
-    'client': 'topics',
-    'server': 'topics',
-    'request': 'services',
-    'service': 'services',
+MODE_POLICY_TYPE_MAPPING = {
+    'topic_subscriber': 'topics',
+    'topic_publisher':  'topics',
+    'service_client':   'services',
+    'service_server':   'services',
+    'parameter_client': 'parameters',
+    'parameter_server': 'parameters',
 }
-mode_mask_mapping = {
-    'client': 'r',
-    'server': 'w',
-    'request': 'c',
-    'service': 's',
+MODE_MASK_MAPPING = {
+    'topic_subscriber': 's', # subscribe
+    'topic_publisher':  'p', # publish
+    'service_client':   'c', # call
+    'service_server':   'x', # execute
+    'parameter_client': 'r', # read
+    'parameter_server': 'w', # write
 }
-mode_key_usage_mapping = {
-    'client': 'CLIENT_AUTH',
-    'server': 'SERVER_AUTH',
-    'request': 'EMAIL_PROTECTION',
-    'service': 'TIME_STAMPING',
+MODE_KEY_USAGE_MAPPING = {
+    'topic_subscriber': 'CLIENT_AUTH',
+    'topic_publisher':  'SERVER_AUTH',
+    'service_client':   'TIME_STAMPING',
+    'service_server':   'CODE_SIGNING',
+    'parameter_client': '1.3.6.1.5.5.7.3.21', # secureShellClient
+    'parameter_server': '1.3.6.1.5.5.7.3.22', # secureShellServer
 }
 
 class KeyBlob:
@@ -100,8 +106,10 @@ class KeyBlob:
                     value = x509_extensions[extension_name]['value']
                     if value is not None:
                         usages = []
-                        for usage_name in value:
-                            usage = getattr(x509.oid.ExtendedKeyUsageOID, usage_name)
+                        for oid in value:
+                            usage = getattr(x509.oid.ExtendedKeyUsageOID, oid, None)
+                            if not usage:
+                                usage = x509.ObjectIdentifier(oid)
                             usages.append(usage)
                         extension_type = getattr(x509, extension_name)
                         extension = extension_type(usages)
@@ -466,8 +474,8 @@ def rehash(hash_dir, keys_dict, clean=False):
 
 
 def get_policy_constraints(node_name, node_config, graph):
-    policy_type = mode_policy_type_mapping[node_config['key_mode']]
-    mask_type = mode_mask_mapping[node_config['key_mode']]
+    policy_type = MODE_POLICY_TYPE_MAPPING[node_config['key_mode']]
+    mask_type = MODE_MASK_MAPPING[node_config['key_mode']]
 
     applicable_nodes = graph.filter_nodes(node_name)
     if applicable_nodes:
@@ -513,7 +521,7 @@ def set_extention(extension_name, extensions_config, node_config, default):
 
 
 def extention_parsing(node_name, node_config, graph_path):
-    mode_type = mode_key_usage_mapping[node_config['key_mode']]
+    mode_type = MODE_KEY_USAGE_MAPPING[node_config['key_mode']]
 
     if node_config['cert']['x509_extensions'] is not None:
         extensions_config = node_config['cert']['x509_extensions']
@@ -580,7 +588,7 @@ def simple_key_generation(keys_dir, config_path):
     # node_names = ['/listener']
     node_names = ['/master','/talker', '/listener', '/rosout']
     # mode_names = ['client']
-    mode_names = ['client','server','service','request']
+    mode_names = ['publisher','subscriber','client','server','service','request']
     key_config = config['keys']['nodes']
 
     for node_name in node_names:

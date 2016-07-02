@@ -8,7 +8,7 @@ from simple_https_helper import validate_cert
 keydir = 'tmp'
 role = 'good'
 node = 'listener'
-mode = '.client'
+mode = '.subscriber'
 topic = '/chatter'
 
 capath = os.path.join(keydir,role,'public')
