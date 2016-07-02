@@ -585,10 +585,16 @@ def simple_key_generation(keys_dir, config_path):
     hash_dir = os.path.join(keys_dir, 'public')
     rehash(hash_dir, keys, clean=True)
 
-    # node_names = ['/listener']
-    node_names = ['/master','/talker', '/listener', '/rosout']
-    # mode_names = ['client']
-    mode_names = ['publisher','subscriber','client','server','service','request']
+    node_names = ['/master',
+                  '/talker',
+                  '/listener',
+                  '/rosout']
+    mode_names = ['topic_subscriber',
+                  'topic_publisher',
+                  'service_client',
+                  'service_server',
+                  'parameter_client',
+                  'parameter_server']
     key_config = config['keys']['nodes']
 
     for node_name in node_names:
